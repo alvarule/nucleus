@@ -12,6 +12,7 @@ class MaskedSecretField extends StatelessWidget {
     required this.revealed,
     required this.onToggle,
     this.canCopy = true,
+    this.onCopy,
   });
 
   final String label;
@@ -19,6 +20,7 @@ class MaskedSecretField extends StatelessWidget {
   final bool revealed;
   final VoidCallback onToggle;
   final bool canCopy;
+  final VoidCallback? onCopy;
 
   @override
   Widget build(BuildContext context) {
@@ -59,22 +61,25 @@ class MaskedSecretField extends StatelessWidget {
                 ),
               ),
               IconButton(
+                tooltip: revealed ? 'Hide' : 'Show',
                 onPressed: onToggle,
                 icon: AppIcon(
                   revealed ? 'eye_off' : 'eye',
                   color: colors.primary,
                 ),
               ),
-              if (canCopy && revealed)
+              if (canCopy)
                 IconButton(
-                  onPressed: () async {
-                    await Clipboard.setData(ClipboardData(text: value));
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Copied')),
-                      );
-                    }
-                  },
+                  tooltip: 'Copy',
+                  onPressed: onCopy ??
+                      () async {
+                        await Clipboard.setData(ClipboardData(text: value));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Copied')),
+                          );
+                        }
+                      },
                   icon: AppIcon('copy', color: colors.textSecondary),
                 ),
             ],

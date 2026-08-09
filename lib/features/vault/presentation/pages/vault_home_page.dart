@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vaultify/core/responsive/scale.dart';
 import 'package:vaultify/core/theme/app_colors.dart';
+import 'package:vaultify/features/profile/presentation/widgets/avatar_widget.dart';
+import 'package:vaultify/features/unlock/presentation/providers/vault_session_provider.dart';
 import 'package:vaultify/features/vault/domain/entities/vault_item.dart';
 import 'package:vaultify/features/vault/presentation/providers/vault_list_provider.dart';
 import 'package:vaultify/shared/widgets/app_icon.dart';
+import 'package:vaultify/shared/widgets/sensitive_access.dart';
 import 'package:vaultify/shared/widgets/vault_loader.dart';
 
 class VaultHomePage extends ConsumerStatefulWidget {
@@ -16,10 +20,42 @@ class VaultHomePage extends ConsumerStatefulWidget {
 }
 
 class _VaultHomePageState extends ConsumerState<VaultHomePage> {
+  final _searchController = TextEditingController();
+  final _searchFocus = FocusNode();
+
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(() => setState(() {}));
     Future.microtask(() => ref.read(vaultListProvider.notifier).refresh());
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _copyPassword(VaultItem item) async {
+    final password = '${item.fields['password'] ?? ''}';
+    if (password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No password on this item')),
+      );
+      return;
+    }
+    final ok = await ensureSensitiveAccess(
+      context,
+      ref,
+      biometricReason: 'Confirm to copy password',
+    );
+    if (!ok || !mounted) return;
+    await Clipboard.setData(ClipboardData(text: password));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Password copied')),
+    );
   }
 
   @override
@@ -27,120 +63,225 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
     final scale = Scale.of(context);
     final colors = context.colors;
     final state = ref.watch(vaultListProvider);
+    final profile = ref.watch(vaultSessionProvider).profile;
+    final firstName = _firstName(profile?.name);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Vault'),
-        actions: [
-          IconButton(
-            onPressed: () => context.push('/profile'),
-            icon: AppIcon('user', color: colors.primary),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddSheet(context),
-        child: AppIcon('plus', color: colors.onPrimary),
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(scale.md, 0, scale.md, scale.sm),
-            child: TextField(
-              onChanged: ref.read(vaultListProvider.notifier).setQuery,
-              decoration: InputDecoration(
-                hintText: 'Search vault',
-                prefixIcon: Padding(
-                  padding: EdgeInsets.all(scale.sm + 2),
-                  child: AppIcon('search', color: colors.textSecondary),
+    return GestureDetector(
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      behavior: HitTestBehavior.deferToChild,
+      child: Scaffold(
+        appBar: AppBar(
+          titleSpacing: scale.md,
+          title: Row(
+            children: [
+              if (profile != null)
+                AvatarWidget(profile: profile, size: scale.s(36))
+              else
+                _PlaceholderAvatar(size: scale.s(36)),
+              SizedBox(width: scale.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Welcome',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: scale.fontSm,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      firstName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontSize: scale.fontLg,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
-                filled: true,
-                fillColor: colors.surfaceMuted,
+              ),
+            ],
+          ),
+          actions: [
+            IconButton(
+              onPressed: () {
+                FocusManager.instance.primaryFocus?.unfocus();
+                context.push('/profile');
+              },
+              icon: AppIcon('user', color: colors.primary),
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            _showAddSheet(context);
+          },
+          child: AppIcon('plus', color: colors.onPrimary),
+        ),
+        body: Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(scale.md, 0, scale.md, scale.sm),
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocus,
+                onChanged: ref.read(vaultListProvider.notifier).setQuery,
+                textInputAction: TextInputAction.search,
+                onTapOutside: (_) => _searchFocus.unfocus(),
+                decoration: InputDecoration(
+                  hintText: 'Search vault',
+                  prefixIcon: Padding(
+                    padding: EdgeInsets.all(scale.sm + 2),
+                    child: AppIcon('search', color: colors.textSecondary),
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          onPressed: () {
+                            _searchController.clear();
+                            ref.read(vaultListProvider.notifier).setQuery('');
+                            _searchFocus.unfocus();
+                          },
+                          icon: AppIcon('close', color: colors.textSecondary),
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: colors.surfaceMuted,
+                ),
               ),
             ),
-          ),
-          SizedBox(
-            height: scale.s(40),
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.symmetric(horizontal: scale.md),
-              children: [
-                _FilterChip(
-                  label: 'All',
-                  selected: state.filter == null,
-                  onTap: () => ref.read(vaultListProvider.notifier).setFilter(null),
-                ),
-                ...VaultItemType.values.map(
-                  (t) => _FilterChip(
-                    label: t.label,
-                    selected: state.filter == t,
-                    onTap: () => ref.read(vaultListProvider.notifier).setFilter(t),
+            SizedBox(
+              height: scale.s(40),
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: EdgeInsets.symmetric(horizontal: scale.md),
+                children: [
+                  _FilterChip(
+                    label: 'All',
+                    icon: 'home',
+                    selected: state.filter == null,
+                    onTap: () {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      ref.read(vaultListProvider.notifier).setFilter(null);
+                    },
                   ),
-                ),
-              ],
+                  ...VaultItemType.values.map(
+                    (t) => _FilterChip(
+                      label: t.label,
+                      icon: t.icon,
+                      selected: state.filter == t,
+                      onTap: () {
+                        FocusManager.instance.primaryFocus?.unfocus();
+                        ref.read(vaultListProvider.notifier).setFilter(t);
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          SizedBox(height: scale.sm),
-          Expanded(
-            child: state.loading
-                ? const VaultLoader()
-                : state.visible.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No items yet.\nTap + to add your first secret.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: colors.textSecondary),
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: () =>
-                            ref.read(vaultListProvider.notifier).refresh(),
-                        child: ListView.separated(
-                          itemCount: state.visible.length,
-                          separatorBuilder: (_, __) =>
-                              Divider(height: 1, color: colors.border),
-                          itemBuilder: (context, index) {
-                            final item = state.visible[index];
-                            return ListTile(
-                              leading: Container(
-                                width: scale.s(44),
-                                height: scale.s(44),
-                                decoration: BoxDecoration(
-                                  color: colors.primarySoft,
-                                  borderRadius:
-                                      BorderRadius.circular(scale.radiusSm),
-                                ),
-                                child: Center(
-                                  child: AppIcon(
-                                    item.type.icon,
-                                    color: colors.primary,
+            SizedBox(height: scale.sm),
+            Expanded(
+              child: NotificationListener<UserScrollNotification>(
+                onNotification: (_) {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  return false;
+                },
+                child: state.loading
+                    ? const VaultLoader()
+                    : state.visible.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No items yet.\nTap + to add your first secret.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: colors.textSecondary),
+                            ),
+                          )
+                        : RefreshIndicator(
+                            onRefresh: () =>
+                                ref.read(vaultListProvider.notifier).refresh(),
+                            child: ListView.separated(
+                              itemCount: state.visible.length,
+                              separatorBuilder: (_, __) =>
+                                  Divider(height: 1, color: colors.border),
+                              itemBuilder: (context, index) {
+                                final item = state.visible[index];
+                                final hasPassword =
+                                    '${item.fields['password'] ?? ''}'.isNotEmpty;
+                                return ListTile(
+                                  leading: Container(
+                                    width: scale.s(44),
+                                    height: scale.s(44),
+                                    decoration: BoxDecoration(
+                                      color: colors.primarySoft,
+                                      borderRadius:
+                                          BorderRadius.circular(scale.radiusSm),
+                                    ),
+                                    child: Center(
+                                      child: AppIcon(
+                                        item.type.icon,
+                                        color: colors.primary,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                              title: Text(
-                                item.label,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: colors.textPrimary,
-                                ),
-                              ),
-                              subtitle: Text(
-                                item.type.label,
-                                style: TextStyle(color: colors.textSecondary),
-                              ),
-                              trailing: AppIcon(
-                                'chevron_right',
-                                color: colors.textTertiary,
-                              ),
-                              onTap: () => context.push('/vault/${item.id}'),
-                            );
-                          },
-                        ),
-                      ),
-          ),
-        ],
+                                  title: Text(
+                                    item.label,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: colors.textPrimary,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    item.type.label,
+                                    style:
+                                        TextStyle(color: colors.textSecondary),
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (hasPassword)
+                                        IconButton(
+                                          tooltip: 'Copy password',
+                                          onPressed: () {
+                                            FocusManager.instance.primaryFocus
+                                                ?.unfocus();
+                                            _copyPassword(item);
+                                          },
+                                          icon: AppIcon(
+                                            'copy',
+                                            color: colors.textSecondary,
+                                          ),
+                                        ),
+                                      AppIcon(
+                                        'chevron_right',
+                                        color: colors.textTertiary,
+                                      ),
+                                    ],
+                                  ),
+                                  onTap: () {
+                                    FocusManager.instance.primaryFocus
+                                        ?.unfocus();
+                                    context.push('/vault/${item.id}');
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  String _firstName(String? name) {
+    final trimmed = name?.trim() ?? '';
+    if (trimmed.isEmpty) return 'there';
+    return trimmed.split(RegExp(r'\s+')).first;
   }
 
   void _showAddSheet(BuildContext context) {
@@ -176,14 +317,37 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
   }
 }
 
+class _PlaceholderAvatar extends StatelessWidget {
+  const _PlaceholderAvatar({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: colors.primarySoft,
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: AppIcon('user', size: size * 0.45, color: colors.primary),
+    );
+  }
+}
+
 class _FilterChip extends StatelessWidget {
   const _FilterChip({
     required this.label,
+    required this.icon,
     required this.selected,
     required this.onTap,
   });
 
   final String label;
+  final String icon;
   final bool selected;
   final VoidCallback onTap;
 
@@ -191,11 +355,14 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final scale = Scale.of(context);
+    final iconColor = selected ? colors.primary : colors.textSecondary;
     return Padding(
       padding: EdgeInsets.only(right: scale.sm),
       child: ChoiceChip(
+        avatar: AppIcon(icon, size: scale.iconSm, color: iconColor),
         label: Text(label),
         selected: selected,
+        showCheckmark: false,
         onSelected: (_) => onTap(),
         selectedColor: colors.primarySoft,
         labelStyle: TextStyle(

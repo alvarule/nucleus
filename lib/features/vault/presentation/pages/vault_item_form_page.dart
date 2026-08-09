@@ -8,6 +8,7 @@ import 'package:vaultify/features/unlock/presentation/providers/vault_session_pr
 import 'package:vaultify/features/vault/domain/entities/vault_item.dart';
 import 'package:vaultify/features/vault/presentation/providers/vault_list_provider.dart';
 import 'package:vaultify/shared/widgets/app_icon.dart';
+import 'package:vaultify/shared/widgets/sensitive_access.dart';
 import 'package:vaultify/shared/widgets/vault_text_field.dart';
 
 class VaultItemFormPage extends ConsumerStatefulWidget {
@@ -29,6 +30,7 @@ class VaultItemFormPage extends ConsumerStatefulWidget {
 class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
   final _formKey = GlobalKey<FormState>();
   final _controllers = <String, TextEditingController>{};
+  final _focusNodes = <String, FocusNode>{};
   bool _saving = false;
   String? _accountType = 'savings';
   String? _cardType = 'debit';
@@ -43,6 +45,7 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
     for (final key in _fieldsFor(widget.type)) {
       _controllers[key] =
           TextEditingController(text: '${initial[key] ?? ''}');
+      _focusNodes[key] = FocusNode();
     }
     _accountType = initial['account_type'] as String? ?? 'savings';
     _cardType = initial['card_type'] as String? ?? 'debit';
@@ -52,6 +55,9 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
   void dispose() {
     for (final c in _controllers.values) {
       c.dispose();
+    }
+    for (final f in _focusNodes.values) {
+      f.dispose();
     }
     super.dispose();
   }
@@ -108,13 +114,12 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
         'card_no',
       };
 
-  String _label(String key) => key.replaceAll('_', ' ');
-
   @override
   Widget build(BuildContext context) {
     final scale = Scale.of(context);
     final colors = context.colors;
     final isEdit = widget.existing != null;
+    final keys = _controllers.keys.toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -130,17 +135,48 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
           child: ListView(
             padding: EdgeInsets.all(scale.lg),
             children: [
-              ..._controllers.entries.map((e) {
-                final isNotes = e.key == 'notes';
+              ...keys.asMap().entries.map((entry) {
+                final index = entry.key;
+                final fieldKey = entry.value;
+                final isNotes = fieldKey == 'notes';
+                final isLast = index == keys.length - 1 &&
+                    widget.type != VaultItemType.bankAccount &&
+                    widget.type != VaultItemType.atmCard;
+                final nextKey = index < keys.length - 1 ? keys[index + 1] : null;
+
                 return Padding(
                   padding: EdgeInsets.only(bottom: scale.md),
                   child: VaultTextField(
-                    controller: e.value,
-                    label: '${_label(e.key)}${_required.contains(e.key) ? ' *' : ''}',
-                    obscureText: _sensitive.contains(e.key),
+                    controller: _controllers[fieldKey]!,
+                    focusNode: _focusNodes[fieldKey],
+                    label:
+                        '${titleCaseLabel(fieldKey)}${_required.contains(fieldKey) ? ' *' : ''}',
+                    obscureText: _sensitive.contains(fieldKey),
+                    enableObscureToggle: _sensitive.contains(fieldKey),
+                    onBeforeReveal: isEdit && _sensitive.contains(fieldKey)
+                        ? () => ensureSensitiveAccess(
+                              context,
+                              ref,
+                              biometricReason: 'Reveal sensitive data',
+                            )
+                        : null,
                     maxLines: isNotes ? 5 : 1,
+                    textInputAction: isNotes
+                        ? TextInputAction.newline
+                        : (isLast ? TextInputAction.done : TextInputAction.next),
+                    onFieldSubmitted: isNotes
+                        ? null
+                        : (_) {
+                            if (nextKey != null) {
+                              _focusNodes[nextKey]!.requestFocus();
+                            } else if (isLast) {
+                              _save();
+                            } else {
+                              FocusScope.of(context).unfocus();
+                            }
+                          },
                     validator: (v) {
-                      if (_required.contains(e.key) &&
+                      if (_required.contains(fieldKey) &&
                           (v == null || v.trim().isEmpty)) {
                         return 'Required';
                       }
@@ -150,8 +186,13 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
                 );
               }),
               if (widget.type == VaultItemType.bankAccount) ...[
-                Text('Account type *',
-                    style: TextStyle(color: colors.textSecondary, fontSize: scale.fontSm)),
+                Text(
+                  'Account type *',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: scale.fontSm,
+                  ),
+                ),
                 SizedBox(height: scale.sm),
                 DropdownButtonFormField<String>(
                   value: _accountType,
@@ -166,8 +207,13 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
                 SizedBox(height: scale.md),
               ],
               if (widget.type == VaultItemType.atmCard) ...[
-                Text('Card type *',
-                    style: TextStyle(color: colors.textSecondary, fontSize: scale.fontSm)),
+                Text(
+                  'Card type *',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: scale.fontSm,
+                  ),
+                ),
                 SizedBox(height: scale.sm),
                 DropdownButtonFormField<String>(
                   value: _cardType,
@@ -210,13 +256,14 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
 
     try {
       final repo = ref.read(vaultRepositoryProvider);
+      final VaultItem saved;
       if (widget.existing != null) {
-        await repo.updateItem(
+        saved = await repo.updateItem(
           item: widget.existing!.copyWith(fields: fields),
           dek: session.dek!,
         );
       } else {
-        await repo.createItem(
+        saved = await repo.createItem(
           userId: userId,
           type: widget.type,
           fields: fields,
@@ -224,7 +271,7 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
         );
       }
       await ref.read(vaultListProvider.notifier).refresh();
-      if (mounted) context.go('/home');
+      if (mounted) context.go('/vault/${saved.id}');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));

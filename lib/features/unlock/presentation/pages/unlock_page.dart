@@ -17,29 +17,63 @@ class UnlockPage extends ConsumerStatefulWidget {
 
 class _UnlockPageState extends ConsumerState<UnlockPage> {
   final _password = TextEditingController();
-  bool _obscure = true;
+  final _passwordFocus = FocusNode();
   bool _bioAvailable = false;
+  bool _bioPrompted = false;
 
   @override
   void initState() {
     super.initState();
-    Future.microtask(() async {
-      final can = await ref.read(biometricUnlockStoreProvider).canCheckBiometrics();
-      final userId = ref.read(authRepositoryProvider).currentUserId;
-      final hasDek = userId != null &&
-          await ref.read(biometricUnlockStoreProvider).hasStoredDek(userId);
-      if (mounted) setState(() => _bioAvailable = can && hasDek);
-      if (_bioAvailable) {
-        final ok =
-            await ref.read(vaultSessionProvider.notifier).unlockWithBiometrics();
-        if (ok && mounted) context.go('/home');
-      }
-    });
+    Future.microtask(_prepareBiometrics);
+  }
+
+  Future<void> _prepareBiometrics() async {
+    final can = await ref.read(biometricUnlockStoreProvider).canCheckBiometrics();
+    final userId = ref.read(authRepositoryProvider).currentUserId;
+    final hasDek = userId != null &&
+        await ref.read(biometricUnlockStoreProvider).hasStoredDek(userId);
+    if (!mounted) return;
+    setState(() => _bioAvailable = can && hasDek);
+    if (_bioAvailable && !_bioPrompted) {
+      _bioPrompted = true;
+      await _unlockWithBiometrics();
+    }
+  }
+
+  Future<void> _unlockWithBiometrics() async {
+    final ok =
+        await ref.read(vaultSessionProvider.notifier).unlockWithBiometrics();
+    if (ok && mounted) context.go('/home');
+  }
+
+  Future<void> _confirmSignOut() async {
+    final colors = context.colors;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sign Out?'),
+        content: const Text('You will need your master password to unlock again.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Sign Out', style: TextStyle(color: colors.danger)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await ref.read(vaultSessionProvider.notifier).logout();
+    if (mounted) context.go('/login');
   }
 
   @override
   void dispose() {
     _password.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -93,12 +127,7 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
               SizedBox(height: scale.xl),
               if (_bioAvailable)
                 OutlinedButton.icon(
-                  onPressed: () async {
-                    final ok = await ref
-                        .read(vaultSessionProvider.notifier)
-                        .unlockWithBiometrics();
-                    if (ok && context.mounted) context.go('/home');
-                  },
+                  onPressed: _unlockWithBiometrics,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: colors.primary,
                     side: BorderSide(color: colors.primary),
@@ -126,16 +155,13 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
               ],
               VaultTextField(
                 controller: _password,
+                focusNode: _passwordFocus,
                 label: 'Master password',
-                obscureText: _obscure,
+                obscureText: true,
+                enableObscureToggle: true,
                 prefixIcon: 'lock',
-                suffix: IconButton(
-                  onPressed: () => setState(() => _obscure = !_obscure),
-                  icon: AppIcon(
-                    _obscure ? 'eye_off' : 'eye',
-                    color: colors.textSecondary,
-                  ),
-                ),
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) => _submitPassword(),
               ),
               if (session.error != null) ...[
                 SizedBox(height: scale.sm),
@@ -145,27 +171,24 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
               PrimaryButton(
                 label: 'Continue',
                 loading: session.status == VaultSessionStatus.unlocking,
-                onPressed: () async {
-                  await ref
-                      .read(vaultSessionProvider.notifier)
-                      .unlockWithPassword(_password.text);
-                  if (ref.read(vaultSessionProvider).isUnlocked && context.mounted) {
-                    context.go('/home');
-                  }
-                },
+                onPressed: _submitPassword,
               ),
               const Spacer(),
               TextButton(
-                onPressed: () async {
-                  await ref.read(vaultSessionProvider.notifier).logout();
-                  if (context.mounted) context.go('/login');
-                },
-                child: Text('Sign out', style: TextStyle(color: colors.textSecondary)),
+                onPressed: _confirmSignOut,
+                child: Text('Sign Out', style: TextStyle(color: colors.textSecondary)),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _submitPassword() async {
+    await ref.read(vaultSessionProvider.notifier).unlockWithPassword(_password.text);
+    if (ref.read(vaultSessionProvider).isUnlocked && mounted) {
+      context.go('/home');
+    }
   }
 }

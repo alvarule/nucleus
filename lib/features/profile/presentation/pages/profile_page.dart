@@ -19,6 +19,7 @@ class ProfilePage extends ConsumerStatefulWidget {
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   late TextEditingController _name;
+  final _nameFocus = FocusNode();
   bool _saving = false;
 
   @override
@@ -31,6 +32,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   @override
   void dispose() {
     _name.dispose();
+    _nameFocus.dispose();
     super.dispose();
   }
 
@@ -75,8 +77,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           SizedBox(height: scale.lg),
           VaultTextField(
             controller: _name,
+            focusNode: _nameFocus,
             label: 'Name',
             prefixIcon: 'user',
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => _save(profile),
           ),
           SizedBox(height: scale.md),
           VaultTextField(
@@ -89,25 +94,27 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           PrimaryButton(
             label: 'Save profile',
             loading: _saving,
-            onPressed: () async {
-              setState(() => _saving = true);
-              try {
-                final updated = await ref.read(profileRepositoryProvider).updateProfile(
-                      profile.copyWith(name: _name.text.trim()),
-                    );
-                ref.read(vaultSessionProvider.notifier).setProfile(updated);
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Profile saved')),
-                );
-              } finally {
-                if (mounted) setState(() => _saving = false);
-              }
-            },
+            onPressed: () => _save(profile),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _save(UserProfile profile) async {
+    setState(() => _saving = true);
+    try {
+      final updated = await ref.read(profileRepositoryProvider).updateProfile(
+            profile.copyWith(name: _name.text.trim()),
+          );
+      ref.read(vaultSessionProvider.notifier).setProfile(updated);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile saved')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _pickPreset(UserProfile profile) async {
@@ -118,31 +125,86 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       isScrollControlled: true,
       builder: (ctx) {
         return SizedBox(
-          height: MediaQuery.sizeOf(ctx).height * 0.7,
-          child: GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-            ),
-            itemCount: 60,
-            itemBuilder: (_, i) {
-              final id = '${i + 1}';
-              return InkWell(
-                onTap: () => Navigator.pop(ctx, id),
-                child: CircleAvatar(
-                  backgroundColor: colors.primarySoft,
-                  child: Text(
-                    id,
-                    style: TextStyle(
-                      color: colors.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
+          height: MediaQuery.sizeOf(ctx).height * 0.75,
+          child: SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Choose avatar',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: AppIcon('close', color: colors.textSecondary),
+                      ),
+                    ],
                   ),
                 ),
-              );
-            },
+                Expanded(
+                  child: GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                    ),
+                    itemCount: 60,
+                    itemBuilder: (_, i) {
+                      final id = '${i + 1}';
+                      final isSelected =
+                          profile.avatarType == AvatarType.preset &&
+                              profile.avatarPresetId == id;
+                      return InkWell(
+                        onTap: () => Navigator.pop(ctx, id),
+                        borderRadius: BorderRadius.circular(999),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 160),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color:
+                                  isSelected ? colors.primary : colors.border,
+                              width: isSelected ? 2.5 : 1,
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(2),
+                          child: ClipOval(
+                            child: Image.asset(
+                              'assets/avatars/$id.png',
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  color: colors.primarySoft,
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    id,
+                                    style: TextStyle(
+                                      color: colors.primary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },

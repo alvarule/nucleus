@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
@@ -6,6 +7,8 @@ import 'package:vaultify/core/crypto/vault_crypto_service.dart';
 import 'package:vaultify/core/di/providers.dart';
 import 'package:vaultify/core/errors/app_exception.dart';
 import 'package:vaultify/features/profile/domain/entities/user_profile.dart';
+import 'package:vaultify/features/settings/domain/security_timeouts.dart';
+import 'package:vaultify/features/settings/presentation/providers/security_preference_provider.dart';
 
 enum VaultSessionStatus { locked, unlocking, unlocked }
 
@@ -56,11 +59,73 @@ class VaultSessionState extends Equatable {
 }
 
 class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
-  VaultSessionNotifier(this._ref) : super(const VaultSessionState());
+  VaultSessionNotifier(this._ref) : super(const VaultSessionState()) {
+    _ref.listen(securityPreferenceProvider, (prev, next) {
+      if (!state.isUnlocked) return;
+      _scheduleInactivityWatch();
+      if (next.revealGrace.duration == null) {
+        state = state.copyWith(clearReveal: true);
+      }
+    });
+  }
 
   final Ref _ref;
 
-  static const _revealGrace = Duration(minutes: 2);
+  DateTime? _lastActivityAt;
+  Timer? _inactivityTimer;
+
+  Duration? get _revealGraceDuration =>
+      _ref.read(securityPreferenceProvider).revealGrace.duration;
+
+  Duration? get _autoLockDuration =>
+      _ref.read(securityPreferenceProvider).autoLock.duration;
+
+  DateTime? _revealUntilFromNow() {
+    final grace = _revealGraceDuration;
+    if (grace == null) return null;
+    return DateTime.now().add(grace);
+  }
+
+  void touchActivity() {
+    if (!state.isUnlocked) return;
+    _lastActivityAt = DateTime.now();
+  }
+
+  void _scheduleInactivityWatch() {
+    _inactivityTimer?.cancel();
+    _inactivityTimer = null;
+
+    final timeout = _autoLockDuration;
+    if (!state.isUnlocked || timeout == null) return;
+
+    _lastActivityAt ??= DateTime.now();
+    _inactivityTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!state.isUnlocked) {
+        _inactivityTimer?.cancel();
+        _inactivityTimer = null;
+        return;
+      }
+      final last = _lastActivityAt;
+      if (last == null) return;
+      if (DateTime.now().difference(last) >= timeout) {
+        lock();
+      }
+    });
+  }
+
+  void _onUnlocked({
+    required Uint8List dek,
+    required UserProfile? profile,
+  }) {
+    _lastActivityAt = DateTime.now();
+    state = VaultSessionState(
+      status: VaultSessionStatus.unlocked,
+      dek: dek,
+      profile: profile,
+      revealUntil: _revealUntilFromNow(),
+    );
+    _scheduleInactivityWatch();
+  }
 
   Future<void> loadProfile(String userId) async {
     final profile = await _ref.read(profileRepositoryProvider).getProfile(userId);
@@ -94,12 +159,7 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
         ),
       );
       await _ref.read(biometricUnlockStoreProvider).saveDek(userId, dek);
-      state = VaultSessionState(
-        status: VaultSessionStatus.unlocked,
-        dek: dek,
-        profile: profile,
-        revealUntil: DateTime.now().add(_revealGrace),
-      );
+      _onUnlocked(dek: dek, profile: profile);
     } catch (e) {
       state = state.copyWith(
         status: VaultSessionStatus.locked,
@@ -119,23 +179,21 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
     final dek = await store.readDek(userId);
     if (dek == null) return false;
     final profile = await _ref.read(profileRepositoryProvider).getProfile(userId);
-    state = VaultSessionState(
-      status: VaultSessionStatus.unlocked,
-      dek: dek,
-      profile: profile,
-      revealUntil: DateTime.now().add(_revealGrace),
-    );
+    _onUnlocked(dek: dek, profile: profile);
     return true;
   }
 
-  Future<bool> gateForReveal() async {
+  Future<bool> gateForReveal({
+    String reason = 'Reveal sensitive data',
+  }) async {
     if (state.canRevealSecrets) return true;
     final store = _ref.read(biometricUnlockStoreProvider);
     final canBio = await store.canCheckBiometrics();
     if (canBio) {
-      final ok = await store.authenticate(reason: 'Reveal sensitive data');
+      final ok = await store.authenticate(reason: reason);
       if (ok && state.dek != null) {
-        state = state.copyWith(revealUntil: DateTime.now().add(_revealGrace));
+        grantRevealGrace();
+        touchActivity();
         return true;
       }
     }
@@ -143,10 +201,18 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
   }
 
   void grantRevealGrace() {
-    state = state.copyWith(revealUntil: DateTime.now().add(_revealGrace));
+    final until = _revealUntilFromNow();
+    if (until == null) {
+      state = state.copyWith(clearReveal: true);
+      return;
+    }
+    state = state.copyWith(revealUntil: until);
   }
 
   void lock() {
+    _inactivityTimer?.cancel();
+    _inactivityTimer = null;
+    _lastActivityAt = null;
     state = VaultSessionState(
       status: VaultSessionStatus.locked,
       profile: state.profile,
@@ -159,6 +225,9 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
       await _ref.read(biometricUnlockStoreProvider).clearDek(userId);
     }
     await _ref.read(authRepositoryProvider).signOut();
+    _inactivityTimer?.cancel();
+    _inactivityTimer = null;
+    _lastActivityAt = null;
     state = const VaultSessionState();
   }
 
@@ -170,12 +239,13 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
     required Uint8List dek,
     required UserProfile profile,
   }) {
-    state = VaultSessionState(
-      status: VaultSessionStatus.unlocked,
-      dek: dek,
-      profile: profile,
-      revealUntil: DateTime.now().add(_revealGrace),
-    );
+    _onUnlocked(dek: dek, profile: profile);
+  }
+
+  @override
+  void dispose() {
+    _inactivityTimer?.cancel();
+    super.dispose();
   }
 }
 

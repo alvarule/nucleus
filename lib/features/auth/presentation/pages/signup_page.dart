@@ -19,8 +19,11 @@ class _SignupPageState extends ConsumerState<SignupPage> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _confirm = TextEditingController();
+  final _nameFocus = FocusNode();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+  final _confirmFocus = FocusNode();
   final _formKey = GlobalKey<FormState>();
-  bool _obscure = true;
 
   @override
   void dispose() {
@@ -28,7 +31,21 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     _email.dispose();
     _password.dispose();
     _confirm.dispose();
+    _nameFocus.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
+    _confirmFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    final ok = await ref.read(authControllerProvider.notifier).signUp(
+          name: _name.text,
+          email: _email.text,
+          password: _password.text,
+        );
+    if (ok && mounted) context.go('/home');
   }
 
   @override
@@ -43,7 +60,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
           onPressed: () => context.pop(),
           icon: AppIcon('back', color: colors.textPrimary),
         ),
-        title: const Text('Create account'),
+        title: const Text('Create Account'),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -55,45 +72,52 @@ class _SignupPageState extends ConsumerState<SignupPage> {
               children: [
                 VaultTextField(
                   controller: _name,
+                  focusNode: _nameFocus,
                   label: 'Name',
                   hint: 'Your name',
                   prefixIcon: 'user',
+                  textInputAction: TextInputAction.next,
+                  onFieldSubmitted: (_) => _emailFocus.requestFocus(),
                   validator: (v) =>
                       (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
                 SizedBox(height: scale.md),
                 VaultTextField(
                   controller: _email,
+                  focusNode: _emailFocus,
                   label: 'Email',
                   hint: 'you@example.com',
                   prefixIcon: 'mail',
                   keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
                   validator: (v) =>
                       (v == null || !v.contains('@')) ? 'Enter a valid email' : null,
                 ),
                 SizedBox(height: scale.md),
                 VaultTextField(
                   controller: _password,
+                  focusNode: _passwordFocus,
                   label: 'Master password',
                   hint: 'Min 8 characters',
                   prefixIcon: 'lock',
-                  obscureText: _obscure,
-                  suffix: IconButton(
-                    onPressed: () => setState(() => _obscure = !_obscure),
-                    icon: AppIcon(
-                      _obscure ? 'eye_off' : 'eye',
-                      color: colors.textSecondary,
-                    ),
-                  ),
+                  obscureText: true,
+                  enableObscureToggle: true,
+                  textInputAction: TextInputAction.next,
+                  onFieldSubmitted: (_) => _confirmFocus.requestFocus(),
                   validator: (v) =>
                       (v == null || v.length < 8) ? 'Min 8 characters' : null,
                 ),
                 SizedBox(height: scale.md),
                 VaultTextField(
                   controller: _confirm,
+                  focusNode: _confirmFocus,
                   label: 'Confirm master password',
                   obscureText: true,
+                  enableObscureToggle: true,
                   prefixIcon: 'lock',
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _submit(),
                   validator: (v) =>
                       v != _password.text ? 'Passwords do not match' : null,
                 ),
@@ -105,15 +129,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                 PrimaryButton(
                   label: 'Create vault',
                   loading: auth.loading,
-                  onPressed: () async {
-                    if (!_formKey.currentState!.validate()) return;
-                    final ok = await ref.read(authControllerProvider.notifier).signUp(
-                          name: _name.text,
-                          email: _email.text,
-                          password: _password.text,
-                        );
-                    if (ok && context.mounted) context.go('/home');
-                  },
+                  onPressed: _submit,
                 ),
               ],
             ),

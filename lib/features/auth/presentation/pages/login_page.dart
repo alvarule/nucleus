@@ -17,14 +17,26 @@ class LoginPage extends ConsumerStatefulWidget {
 class _LoginPageState extends ConsumerState<LoginPage> {
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
   final _formKey = GlobalKey<FormState>();
-  bool _obscure = true;
 
   @override
   void dispose() {
     _email.dispose();
     _password.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    final ok = await ref.read(authControllerProvider.notifier).signIn(
+          email: _email.text,
+          password: _password.text,
+        );
+    if (ok && mounted) context.go('/home');
   }
 
   @override
@@ -79,27 +91,27 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 SizedBox(height: scale.xl),
                 VaultTextField(
                   controller: _email,
+                  focusNode: _emailFocus,
                   label: 'Email',
                   hint: 'you@example.com',
                   prefixIcon: 'mail',
                   keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
                   validator: (v) =>
                       (v == null || !v.contains('@')) ? 'Enter a valid email' : null,
                 ),
                 SizedBox(height: scale.md),
                 VaultTextField(
                   controller: _password,
+                  focusNode: _passwordFocus,
                   label: 'Master password',
                   hint: 'Enter your master password',
                   prefixIcon: 'lock',
-                  obscureText: _obscure,
-                  suffix: IconButton(
-                    onPressed: () => setState(() => _obscure = !_obscure),
-                    icon: AppIcon(
-                      _obscure ? 'eye_off' : 'eye',
-                      color: colors.textSecondary,
-                    ),
-                  ),
+                  obscureText: true,
+                  enableObscureToggle: true,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _submit(),
                   validator: (v) =>
                       (v == null || v.length < 8) ? 'Min 8 characters' : null,
                 ),
@@ -114,20 +126,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 PrimaryButton(
                   label: 'Unlock',
                   loading: auth.loading,
-                  onPressed: () async {
-                    if (!_formKey.currentState!.validate()) return;
-                    final ok = await ref.read(authControllerProvider.notifier).signIn(
-                          email: _email.text,
-                          password: _password.text,
-                        );
-                    if (ok && context.mounted) context.go('/home');
-                  },
+                  onPressed: _submit,
                 ),
                 SizedBox(height: scale.md),
                 TextButton(
                   onPressed: () => context.push('/signup'),
                   child: Text(
-                    'Create account',
+                    'Create Account',
                     style: TextStyle(color: colors.primary),
                   ),
                 ),

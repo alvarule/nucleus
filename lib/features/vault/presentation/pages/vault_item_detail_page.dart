@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -10,6 +11,7 @@ import 'package:vaultify/features/vault/domain/entities/vault_item.dart';
 import 'package:vaultify/features/vault/presentation/providers/vault_list_provider.dart';
 import 'package:vaultify/shared/widgets/app_icon.dart';
 import 'package:vaultify/shared/widgets/masked_secret_field.dart';
+import 'package:vaultify/shared/widgets/sensitive_access.dart';
 import 'package:vaultify/shared/widgets/vault_loader.dart';
 import 'package:vaultify/shared/widgets/vault_text_field.dart';
 
@@ -76,67 +78,25 @@ class _VaultItemDetailPageState extends ConsumerState<VaultItemDetailPage> {
       setState(() => _revealed.remove(key));
       return;
     }
-    final session = ref.read(vaultSessionProvider);
-    if (session.canRevealSecrets) {
-      setState(() => _revealed.add(key));
-      return;
-    }
-    final bioOk = await ref.read(vaultSessionProvider.notifier).gateForReveal();
-    if (bioOk) {
-      setState(() => _revealed.add(key));
-      return;
-    }
-    if (!mounted) return;
-    final password = await _askMasterPassword();
-    if (password == null || password.isEmpty) return;
-    await ref.read(vaultSessionProvider.notifier).unlockWithPassword(password);
-    if (ref.read(vaultSessionProvider).isUnlocked) {
-      ref.read(vaultSessionProvider.notifier).grantRevealGrace();
-      setState(() => _revealed.add(key));
-    }
+    final ok = await ensureSensitiveAccess(
+      context,
+      ref,
+      biometricReason: 'Reveal sensitive data',
+    );
+    if (ok && mounted) setState(() => _revealed.add(key));
   }
 
-  Future<String?> _askMasterPassword() async {
-    final controller = TextEditingController();
-    final colors = context.colors;
-    return showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: colors.surface,
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.viewInsetsOf(ctx).bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Confirm master password',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              VaultTextField(
-                controller: controller,
-                obscureText: true,
-                prefixIcon: 'lock',
-                hint: 'Master password',
-              ),
-              const SizedBox(height: 16),
-              PrimaryButton(
-                label: 'Reveal',
-                onPressed: () => Navigator.pop(ctx, controller.text),
-              ),
-            ],
-          ),
-        );
-      },
+  Future<void> _copySecret(String key, String value) async {
+    final ok = await ensureSensitiveAccess(
+      context,
+      ref,
+      biometricReason: 'Confirm to copy',
+    );
+    if (!ok || !mounted) return;
+    await Clipboard.setData(ClipboardData(text: value));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${titleCaseLabel(key)} copied')),
     );
   }
 
@@ -165,13 +125,15 @@ class _VaultItemDetailPageState extends ConsumerState<VaultItemDetailPage> {
         title: Text(item.label),
         actions: [
           IconButton(
+            tooltip: 'Edit',
             onPressed: () => context.push(
               '/vault/edit/${item.id}',
               extra: item,
             ),
-            icon: AppIcon('settings', color: colors.textSecondary),
+            icon: AppIcon('edit', color: colors.textSecondary),
           ),
           IconButton(
+            tooltip: 'Delete',
             onPressed: () async {
               final confirm = await showDialog<bool>(
                 context: context,
@@ -195,7 +157,7 @@ class _VaultItemDetailPageState extends ConsumerState<VaultItemDetailPage> {
                 if (context.mounted) context.go('/home');
               }
             },
-            icon: AppIcon('lock', color: colors.danger),
+            icon: AppIcon('delete', color: colors.danger),
           ),
         ],
       ),
@@ -205,14 +167,16 @@ class _VaultItemDetailPageState extends ConsumerState<VaultItemDetailPage> {
           ...item.fields.entries.where((e) => '${e.value}'.isNotEmpty).map((e) {
             final key = e.key;
             final value = '${e.value}';
+            final label = titleCaseLabel(key);
             if (_sensitiveKeys.contains(key)) {
               return Padding(
                 padding: EdgeInsets.only(bottom: scale.md),
                 child: MaskedSecretField(
-                  label: key.replaceAll('_', ' '),
+                  label: label,
                   value: value,
                   revealed: _revealed.contains(key),
                   onToggle: () => _toggleReveal(key),
+                  onCopy: () => _copySecret(key, value),
                 ),
               );
             }
@@ -230,7 +194,7 @@ class _VaultItemDetailPageState extends ConsumerState<VaultItemDetailPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      key.replaceAll('_', ' '),
+                      label,
                       style: TextStyle(
                         color: colors.textSecondary,
                         fontSize: scale.fontSm,

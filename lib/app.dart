@@ -4,6 +4,7 @@ import 'package:vaultify/core/lifecycle/vault_lifecycle_observer.dart';
 import 'package:vaultify/core/theme/app_theme.dart';
 import 'package:vaultify/features/profile/domain/entities/user_profile.dart';
 import 'package:vaultify/features/settings/presentation/providers/theme_preference_provider.dart';
+import 'package:vaultify/features/unlock/presentation/providers/vault_session_provider.dart';
 import 'package:vaultify/router/app_router.dart';
 
 class VaultifyApp extends ConsumerStatefulWidget {
@@ -47,6 +48,15 @@ class _VaultifyAppState extends ConsumerState<VaultifyApp> {
       darkTheme: AppTheme.dark(),
       themeMode: mode,
       routerConfig: router,
+      builder: (context, child) {
+        return Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (_) {
+            ref.read(vaultSessionProvider.notifier).touchActivity();
+          },
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

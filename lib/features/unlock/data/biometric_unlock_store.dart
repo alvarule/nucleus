@@ -19,6 +19,11 @@ class BiometricUnlockStore {
 
   static const _dekKeyPrefix = 'vault_dek_';
 
+  int _authDepth = 0;
+
+  /// True while a biometric / device-credential prompt is showing.
+  bool get isAuthenticating => _authDepth > 0;
+
   Future<bool> canCheckBiometrics() async {
     try {
       return await _localAuth.canCheckBiometrics ||
@@ -29,16 +34,20 @@ class BiometricUnlockStore {
   }
 
   Future<bool> authenticate({String reason = 'Unlock Vaultify'}) async {
+    _authDepth++;
     try {
       return await _localAuth.authenticate(
         localizedReason: reason,
         options: const AuthenticationOptions(
           biometricOnly: false,
           stickyAuth: true,
+          useErrorDialogs: true,
         ),
       );
     } catch (_) {
       return false;
+    } finally {
+      _authDepth--;
     }
   }
 
