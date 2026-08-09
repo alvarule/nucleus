@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
-import 'package:local_auth/local_auth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:local_auth/local_auth.dart';
 
 /// Stores device-wrapped DEK for biometric unlock; never stores master password.
 class BiometricUnlockStore {

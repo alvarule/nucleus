@@ -169,6 +169,35 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
     }
   }
 
+  /// Verifies master password while the vault is already unlocked.
+  /// Does not flip status to [VaultSessionStatus.unlocking] (avoids router
+  /// redirect) and does not lock on failure.
+  Future<bool> confirmMasterPasswordForReveal(String masterPassword) async {
+    if (!state.isUnlocked) return false;
+    final auth = _ref.read(authRepositoryProvider);
+    final userId = auth.currentUserId;
+    if (userId == null) return false;
+    try {
+      final profile = state.profile ??
+          await _ref.read(profileRepositoryProvider).getProfile(userId);
+      if (profile == null) return false;
+      final crypto = _ref.read(vaultCryptoProvider);
+      await crypto.unwrapDek(
+        masterPassword: masterPassword,
+        wrapped: WrappedDek(
+          encryptedDekBase64: profile.encryptedDek,
+          saltBase64: profile.kekSalt,
+          kdfParams: KdfParams.fromJson(profile.kdfParams),
+        ),
+      );
+      grantRevealGrace();
+      touchActivity();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> unlockWithBiometrics() async {
     final auth = _ref.read(authRepositoryProvider);
     final userId = auth.currentUserId;

@@ -144,40 +144,42 @@ class SettingsPage extends ConsumerWidget {
       ),
       builder: (ctx) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                child: Text(
-                  'Auto-lock vault',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 18,
-                    color: colors.textPrimary,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                  child: Text(
+                    'Auto-lock vault',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                      color: colors.textPrimary,
+                    ),
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                child: Text(
-                  'Locks after inactivity. The vault still locks when the app goes to background.',
-                  style: TextStyle(color: colors.textSecondary, fontSize: 13),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Text(
+                    'Locks after inactivity. The vault still locks when the app goes to background.',
+                    style: TextStyle(color: colors.textSecondary, fontSize: 13),
+                  ),
                 ),
-              ),
-              ...VaultAutoLockOption.values.map(
-                (option) => ListTile(
-                  title: Text(option.label),
-                  subtitle: Text(option.description),
-                  trailing: option == current
-                      ? AppIcon('check', color: colors.primary)
-                      : null,
-                  onTap: () => Navigator.pop(ctx, option),
+                ...VaultAutoLockOption.values.map(
+                  (option) => ListTile(
+                    title: Text(option.label),
+                    subtitle: Text(option.description),
+                    trailing: option == current
+                        ? AppIcon('check', color: colors.primary)
+                        : null,
+                    onTap: () => Navigator.pop(ctx, option),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-            ],
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         );
       },
@@ -201,40 +203,42 @@ class SettingsPage extends ConsumerWidget {
       ),
       builder: (ctx) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                child: Text(
-                  'Re-auth for secrets',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 18,
-                    color: colors.textPrimary,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                  child: Text(
+                    'Re-auth for secrets',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                      color: colors.textPrimary,
+                    ),
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                child: Text(
-                  'Controls how often reveal and copy ask for fingerprint or master password.',
-                  style: TextStyle(color: colors.textSecondary, fontSize: 13),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Text(
+                    'Controls how often reveal and copy ask for fingerprint or master password.',
+                    style: TextStyle(color: colors.textSecondary, fontSize: 13),
+                  ),
                 ),
-              ),
-              ...RevealGraceOption.values.map(
-                (option) => ListTile(
-                  title: Text(option.label),
-                  subtitle: Text(option.description),
-                  trailing: option == current
-                      ? AppIcon('check', color: colors.primary)
-                      : null,
-                  onTap: () => Navigator.pop(ctx, option),
+                ...RevealGraceOption.values.map(
+                  (option) => ListTile(
+                    title: Text(option.label),
+                    subtitle: Text(option.description),
+                    trailing: option == current
+                        ? AppIcon('check', color: colors.primary)
+                        : null,
+                    onTap: () => Navigator.pop(ctx, option),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-            ],
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         );
       },

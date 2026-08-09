@@ -26,10 +26,10 @@ Future<bool> ensureSensitiveAccess(
   );
   if (password == null || password.isEmpty) return false;
 
-  await ref.read(vaultSessionProvider.notifier).unlockWithPassword(password);
-  if (!ref.read(vaultSessionProvider).isUnlocked) return false;
-  ref.read(vaultSessionProvider.notifier).grantRevealGrace();
-  return true;
+  // Verify password without flipping session to unlocking (avoids /unlock redirect).
+  return ref
+      .read(vaultSessionProvider.notifier)
+      .confirmMasterPasswordForReveal(password);
 }
 
 Future<String?> showMasterPasswordSheet(
@@ -37,48 +37,85 @@ Future<String?> showMasterPasswordSheet(
   String title = 'Confirm master password',
   String actionLabel = 'Confirm',
 }) {
-  final controller = TextEditingController();
   final colors = context.colors;
   return showModalBottomSheet<String>(
     context: context,
     isScrollControlled: true,
     backgroundColor: colors.surface,
-    builder: (ctx) {
-      return Padding(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 20,
-          bottom: MediaQuery.viewInsetsOf(ctx).bottom + 20,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: colors.textPrimary,
-              ),
+    builder: (ctx) => _MasterPasswordSheetBody(
+      title: title,
+      actionLabel: actionLabel,
+    ),
+  );
+}
+
+class _MasterPasswordSheetBody extends StatefulWidget {
+  const _MasterPasswordSheetBody({
+    required this.title,
+    required this.actionLabel,
+  });
+
+  final String title;
+  final String actionLabel;
+
+  @override
+  State<_MasterPasswordSheetBody> createState() =>
+      _MasterPasswordSheetBodyState();
+}
+
+class _MasterPasswordSheetBodyState extends State<_MasterPasswordSheetBody> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: viewInsets + 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            widget.title,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: colors.textPrimary,
             ),
-            const SizedBox(height: 12),
-            VaultTextField(
-              controller: controller,
-              obscureText: true,
-              enableObscureToggle: true,
-              prefixIcon: 'lock',
-              hint: 'Master password',
-              textInputAction: TextInputAction.done,
-              onFieldSubmitted: (v) => Navigator.pop(ctx, v),
-            ),
-            const SizedBox(height: 16),
-            PrimaryButton(
-              label: actionLabel,
-              onPressed: () => Navigator.pop(ctx, controller.text),
-            ),
-          ],
-        ),
-      );
-    },
-  ).whenComplete(controller.dispose);
+          ),
+          const SizedBox(height: 12),
+          VaultTextField(
+            controller: _controller,
+            obscureText: true,
+            enableObscureToggle: true,
+            prefixIcon: 'lock',
+            hint: 'Master password',
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (v) => Navigator.pop(context, v),
+          ),
+          const SizedBox(height: 16),
+          PrimaryButton(
+            label: widget.actionLabel,
+            onPressed: () => Navigator.pop(context, _controller.text),
+          ),
+        ],
+      ),
+    );
+  }
 }
