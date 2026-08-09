@@ -1,0 +1,2 @@
+project_name=vaultify
+db_pass=vaultify@0908
