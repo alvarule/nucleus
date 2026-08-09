@@ -18,6 +18,59 @@ void main() {
     expect(unwrapped, dek);
   });
 
+  test('rewrap DEK with new master password keeps same DEK', () async {
+    final crypto = VaultCryptoService();
+    final dek = crypto.generateDek();
+    const params = KdfParams(memory: 1024, iterations: 1, parallelism: 1);
+    final oldWrap = await crypto.wrapDek(
+      dek: dek,
+      masterPassword: 'old-master-password',
+      params: params,
+    );
+    final unwrapped = await crypto.unwrapDek(
+      masterPassword: 'old-master-password',
+      wrapped: oldWrap,
+    );
+    final newWrap = await crypto.rewrapDek(
+      dek: unwrapped,
+      newMasterPassword: 'new-master-password',
+      params: params,
+    );
+    final afterChange = await crypto.unwrapDek(
+      masterPassword: 'new-master-password',
+      wrapped: newWrap,
+    );
+    expect(afterChange, dek);
+    await expectLater(
+      crypto.unwrapDek(
+        masterPassword: 'old-master-password',
+        wrapped: newWrap,
+      ),
+      throwsA(isA<Object>()),
+    );
+  });
+
+  test('payload decrypt still works after master password rewrap', () async {
+    final crypto = VaultCryptoService();
+    final dek = crypto.generateDek();
+    const params = KdfParams(memory: 1024, iterations: 1, parallelism: 1);
+    final blob = await crypto.encryptPayload(
+      dek: dek,
+      plaintextJson: '{"label":"bank","password":"s3cret"}',
+    );
+    final newWrap = await crypto.rewrapDek(
+      dek: dek,
+      newMasterPassword: 'rotated-password',
+      params: params,
+    );
+    final restoredDek = await crypto.unwrapDek(
+      masterPassword: 'rotated-password',
+      wrapped: newWrap,
+    );
+    final clear = await crypto.decryptPayload(dek: restoredDek, blob: blob);
+    expect(clear, '{"label":"bank","password":"s3cret"}');
+  });
+
   test('encrypt and decrypt payload', () async {
     final crypto = VaultCryptoService();
     final dek = crypto.generateDek();

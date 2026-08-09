@@ -100,6 +100,17 @@ class SettingsPage extends ConsumerWidget {
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: AppIcon('lock', color: colors.primary),
+            title: const Text('Change master password'),
+            subtitle: Text(
+              'Your vault stays encrypted',
+              style: TextStyle(color: colors.textSecondary),
+            ),
+            trailing: AppIcon('chevron_right', color: colors.textTertiary),
+            onTap: () => context.push('/settings/change-master-password'),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: AppIcon('lock', color: colors.primary),
             title: const Text('Lock vault now'),
             onTap: () {
               ref.read(vaultSessionProvider.notifier).lock();

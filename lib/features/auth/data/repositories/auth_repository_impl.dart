@@ -68,13 +68,32 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> updatePassword(String newPassword) async {
-    await _client.auth.updateUser(UserAttributes(password: newPassword));
+    try {
+      final response = await _client.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+      if (response.user == null) {
+        throw const AuthFailure('Could not update master password');
+      }
+    } on AuthFailure {
+      rethrow;
+    } catch (e) {
+      throw AuthFailure(_friendly(e), cause: e);
+    }
   }
 
   String _friendly(Object e) {
     final text = e.toString();
-    if (text.toLowerCase().contains('invalid login')) {
+    final lower = text.toLowerCase();
+    if (lower.contains('invalid login')) {
       return 'Invalid email or master password';
+    }
+    if (lower.contains('same_password') ||
+        lower.contains('should be different')) {
+      return 'New master password must be different from the current one';
+    }
+    if (lower.contains('weak') || lower.contains('at least')) {
+      return 'New master password is too weak';
     }
     return text;
   }

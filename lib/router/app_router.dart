@@ -7,6 +7,7 @@ import 'package:vaultify/features/auth/presentation/pages/signup_page.dart';
 import 'package:vaultify/features/generator/presentation/pages/generator_page.dart';
 import 'package:vaultify/features/health/presentation/pages/health_page.dart';
 import 'package:vaultify/features/profile/presentation/pages/profile_page.dart';
+import 'package:vaultify/features/settings/presentation/pages/change_master_password_page.dart';
 import 'package:vaultify/features/settings/presentation/pages/settings_page.dart';
 import 'package:vaultify/features/unlock/presentation/pages/unlock_page.dart';
 import 'package:vaultify/features/unlock/presentation/providers/vault_session_provider.dart';
@@ -76,6 +77,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/signup', builder: (_, __) => const SignupPage()),
       GoRoute(path: '/unlock', builder: (_, __) => const UnlockPage()),
       GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
+      GoRoute(
+        path: '/settings/change-master-password',
+        builder: (_, __) => const ChangeMasterPasswordPage(),
+      ),
       GoRoute(
         path: '/vault/new',
         builder: (context, state) {
