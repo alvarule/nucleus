@@ -19,32 +19,32 @@ Future<bool> ensureSensitiveAccess(
   if (bioOk) return true;
   if (!context.mounted) return false;
 
-  final password = await showMasterPasswordSheet(
+  final confirmed = await showMasterPasswordSheet(
     context,
     title: 'Confirm master password',
     actionLabel: 'Confirm',
+    verify: (password) => ref
+        .read(vaultSessionProvider.notifier)
+        .confirmMasterPasswordForReveal(password),
   );
-  if (password == null || password.isEmpty) return false;
-
-  // Verify password without flipping session to unlocking (avoids /unlock redirect).
-  return ref
-      .read(vaultSessionProvider.notifier)
-      .confirmMasterPasswordForReveal(password);
+  return confirmed == true;
 }
 
-Future<String?> showMasterPasswordSheet(
+Future<bool?> showMasterPasswordSheet(
   BuildContext context, {
   String title = 'Confirm master password',
   String actionLabel = 'Confirm',
+  required Future<bool> Function(String password) verify,
 }) {
   final colors = context.colors;
-  return showModalBottomSheet<String>(
+  return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     backgroundColor: colors.surface,
     builder: (ctx) => _MasterPasswordSheetBody(
       title: title,
       actionLabel: actionLabel,
+      verify: verify,
     ),
   );
 }
@@ -53,10 +53,12 @@ class _MasterPasswordSheetBody extends StatefulWidget {
   const _MasterPasswordSheetBody({
     required this.title,
     required this.actionLabel,
+    required this.verify,
   });
 
   final String title;
   final String actionLabel;
+  final Future<bool> Function(String password) verify;
 
   @override
   State<_MasterPasswordSheetBody> createState() =>
@@ -65,6 +67,8 @@ class _MasterPasswordSheetBody extends StatefulWidget {
 
 class _MasterPasswordSheetBodyState extends State<_MasterPasswordSheetBody> {
   late final TextEditingController _controller;
+  String? _error;
+  bool _verifying = false;
 
   @override
   void initState() {
@@ -76,6 +80,33 @@ class _MasterPasswordSheetBodyState extends State<_MasterPasswordSheetBody> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_verifying) return;
+    final password = _controller.text;
+    if (password.isEmpty) {
+      setState(() => _error = 'Enter your master password');
+      return;
+    }
+
+    setState(() {
+      _verifying = true;
+      _error = null;
+    });
+
+    final ok = await widget.verify(password);
+    if (!mounted) return;
+
+    if (ok) {
+      Navigator.pop(context, true);
+      return;
+    }
+
+    setState(() {
+      _verifying = false;
+      _error = 'Wrong master password';
+    });
   }
 
   @override
@@ -107,12 +138,26 @@ class _MasterPasswordSheetBodyState extends State<_MasterPasswordSheetBody> {
             prefixIcon: 'lock',
             hint: 'Master password',
             textInputAction: TextInputAction.done,
-            onFieldSubmitted: (v) => Navigator.pop(context, v),
+            onFieldSubmitted: (_) => _submit(),
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
           ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _error!,
+                style: TextStyle(color: colors.danger, fontSize: 13),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           PrimaryButton(
             label: widget.actionLabel,
-            onPressed: () => Navigator.pop(context, _controller.text),
+            loading: _verifying,
+            onPressed: _submit,
           ),
         ],
       ),

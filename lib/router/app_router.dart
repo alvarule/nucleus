@@ -25,7 +25,11 @@ class RouterRefresh extends ChangeNotifier {
 
 final routerRefreshProvider = Provider<RouterRefresh>((ref) {
   final refresh = RouterRefresh();
-  ref.listen(vaultSessionProvider, (previous, next) => refresh.ping());
+  // Only refresh on lock/unlock transitions. Reveal-grace updates must not
+  // rebuild routes — /vault/edit relies on `extra`, which GoRouter drops on refresh.
+  ref.listen(vaultSessionProvider, (previous, next) {
+    if (previous?.status != next.status) refresh.ping();
+  });
   final client = ref.watch(supabaseClientProvider);
   final sub = client.auth.onAuthStateChange.listen((_) => refresh.ping());
   ref.onDispose(sub.cancel);
