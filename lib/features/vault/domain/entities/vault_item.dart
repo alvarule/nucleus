@@ -52,6 +52,32 @@ class VaultItem extends Equatable {
 
   String get label => (fields['label'] as String?) ?? 'Untitled';
 
+  /// Secondary line for vault list tiles. Notes show label only.
+  String? get listSubtitle {
+    switch (type) {
+      case VaultItemType.password:
+        final username = '${fields['username'] ?? ''}'.trim();
+        return username.isEmpty ? null : username;
+      case VaultItemType.bankAccount:
+        return _endingWith(fields['account_no']);
+      case VaultItemType.atmCard:
+        return _endingWith(fields['card_no']);
+      case VaultItemType.note:
+        return null;
+    }
+  }
+
+  static String? _endingWith(dynamic raw) {
+    final digits = '$raw'.replaceAll(RegExp(r'\D'), '');
+    if (digits.length >= 4) {
+      return 'Ending with ${digits.substring(digits.length - 4)}';
+    }
+    final text = '$raw'.trim();
+    if (text.isEmpty) return null;
+    final tail = text.length <= 4 ? text : text.substring(text.length - 4);
+    return 'Ending with $tail';
+  }
+
   VaultItem copyWith({Map<String, dynamic>? fields}) {
     return VaultItem(
       id: id,
