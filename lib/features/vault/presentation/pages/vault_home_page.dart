@@ -58,6 +58,51 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
     );
   }
 
+  Future<bool> _confirmDelete(VaultItem item) async {
+    final colors = context.colors;
+    final scale = Scale.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          'Delete item?',
+          style: TextStyle(
+            fontSize: scale.fontXl,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: Text(
+          'Delete "${item.label}"? This cannot be undone.',
+          style: TextStyle(
+            color: colors.textSecondary,
+            fontSize: scale.fontMd,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(fontSize: scale.fontMd),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'Delete',
+              style: TextStyle(
+                color: colors.danger,
+                fontSize: scale.fontMd,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final scale = Scale.of(context);
@@ -91,6 +136,7 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
+                    SizedBox(height: scale.xs),
                     Text(
                       firstName,
                       maxLines: 1,
@@ -133,8 +179,16 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
                 onChanged: ref.read(vaultListProvider.notifier).setQuery,
                 textInputAction: TextInputAction.search,
                 onTapOutside: (_) => _searchFocus.unfocus(),
+                style: TextStyle(
+                  color: colors.textPrimary,
+                  fontSize: scale.fontMd,
+                ),
                 decoration: InputDecoration(
                   hintText: 'Search vault',
+                  hintStyle: TextStyle(
+                    color: colors.textTertiary,
+                    fontSize: scale.fontMd,
+                  ),
                   prefixIcon: Padding(
                     padding: EdgeInsets.all(scale.sm + 2),
                     child: AppIcon('search', color: colors.textSecondary),
@@ -197,7 +251,11 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
                             child: Text(
                               'No items yet.\nTap + to add your first secret.',
                               textAlign: TextAlign.center,
-                              style: TextStyle(color: colors.textSecondary),
+                              style: TextStyle(
+                                color: colors.textSecondary,
+                                fontSize: scale.fontMd,
+                                height: 1.4,
+                              ),
                             ),
                           )
                         : RefreshIndicator(
@@ -211,61 +269,90 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
                                 final item = state.visible[index];
                                 final hasPassword =
                                     '${item.fields['password'] ?? ''}'.isNotEmpty;
-                                return ListTile(
-                                  leading: Container(
-                                    width: scale.s(44),
-                                    height: scale.s(44),
-                                    decoration: BoxDecoration(
-                                      color: colors.primarySoft,
-                                      borderRadius:
-                                          BorderRadius.circular(scale.radiusSm),
-                                    ),
-                                    child: Center(
-                                      child: AppIcon(
-                                        item.type.icon,
-                                        color: colors.primary,
-                                      ),
-                                    ),
-                                  ),
-                                  title: Text(
-                                    item.label,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: colors.textPrimary,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    item.type.label,
-                                    style:
-                                        TextStyle(color: colors.textSecondary),
-                                  ),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (hasPassword)
-                                        IconButton(
-                                          tooltip: 'Copy password',
-                                          onPressed: () {
-                                            FocusManager.instance.primaryFocus
-                                                ?.unfocus();
-                                            _copyPassword(item);
-                                          },
-                                          icon: AppIcon(
-                                            'copy',
-                                            color: colors.textSecondary,
-                                          ),
-                                        ),
-                                      AppIcon(
-                                        'chevron_right',
-                                        color: colors.textTertiary,
-                                      ),
-                                    ],
-                                  ),
-                                  onTap: () {
-                                    FocusManager.instance.primaryFocus
-                                        ?.unfocus();
-                                    context.push('/vault/${item.id}');
+                                final subtitle = item.listSubtitle;
+                                return Dismissible(
+                                  key: ValueKey(item.id),
+                                  direction: DismissDirection.endToStart,
+                                  confirmDismiss: (_) => _confirmDelete(item),
+                                  onDismissed: (_) {
+                                    ref
+                                        .read(vaultListProvider.notifier)
+                                        .delete(item.id);
                                   },
+                                  background: Container(
+                                    alignment: Alignment.centerRight,
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: scale.lg,
+                                    ),
+                                    color: colors.danger,
+                                    child: AppIcon(
+                                      'delete',
+                                      color: colors.onPrimary,
+                                    ),
+                                  ),
+                                  child: ListTile(
+                                    leading: Container(
+                                      width: scale.s(44),
+                                      height: scale.s(44),
+                                      decoration: BoxDecoration(
+                                        color: colors.primarySoft,
+                                        borderRadius: BorderRadius.circular(
+                                          scale.radiusSm,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: AppIcon(
+                                          item.type.icon,
+                                          color: colors.primary,
+                                        ),
+                                      ),
+                                    ),
+                                    title: Text(
+                                      item.label,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: scale.fontLg,
+                                        color: colors.textPrimary,
+                                      ),
+                                    ),
+                                    subtitle: subtitle == null
+                                        ? null
+                                        : Text(
+                                            subtitle,
+                                            style: TextStyle(
+                                              color: colors.textSecondary,
+                                              fontSize: scale.fontSm,
+                                            ),
+                                          ),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (hasPassword)
+                                          IconButton(
+                                            tooltip: 'Copy password',
+                                            onPressed: () {
+                                              FocusManager
+                                                  .instance.primaryFocus
+                                                  ?.unfocus();
+                                              _copyPassword(item);
+                                            },
+                                            icon: AppIcon(
+                                              'copy',
+                                              color: colors.textSecondary,
+                                            ),
+                                          ),
+                                        AppIcon(
+                                          'chevron_right',
+                                          color: colors.textTertiary,
+                                        ),
+                                      ],
+                                    ),
+                                    onTap: () {
+                                      FocusManager.instance.primaryFocus
+                                          ?.unfocus();
+                                      context.push('/vault/${item.id}');
+                                    },
+                                  ),
                                 );
                               },
                             ),
@@ -297,11 +384,19 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const ListTile(title: Text('Add vault item')),
+              const ListTile(
+                title: Text(
+                  'Add vault item',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
               ...VaultItemType.values.map(
                 (t) => ListTile(
                   leading: AppIcon(t.icon, color: colors.primary),
-                  title: Text(t.label),
+                  title: Text(
+                    t.label,
+                    style: TextStyle(fontSize: Scale.of(ctx).fontLg),
+                  ),
                   onTap: () {
                     Navigator.pop(ctx);
                     context.push('/vault/new?type=${t.dbValue}');
@@ -368,6 +463,7 @@ class _FilterChip extends StatelessWidget {
         labelStyle: TextStyle(
           color: selected ? colors.primary : colors.textSecondary,
           fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          fontSize: scale.fontSm,
         ),
         side: BorderSide(color: selected ? colors.primary : colors.border),
         backgroundColor: colors.surface,

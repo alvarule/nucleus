@@ -115,115 +115,155 @@ class _VaultItemDetailPageState extends ConsumerState<VaultItemDetailPage> {
     }
 
     final item = _item!;
+    final navigatorCanPop = Navigator.of(context).canPop();
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          onPressed: () => context.pop(),
-          icon: AppIcon('back', color: colors.textPrimary),
-        ),
-        title: Text(item.label),
-        actions: [
-          IconButton(
-            tooltip: 'Edit',
-            onPressed: () => context.push(
-              '/vault/edit/${item.id}',
-              extra: item,
-            ),
-            icon: AppIcon('edit', color: colors.textSecondary),
-          ),
-          IconButton(
-            tooltip: 'Delete',
-            onPressed: () async {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Delete item?'),
-                  content: const Text('This cannot be undone.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Cancel'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: Text('Delete', style: TextStyle(color: colors.danger)),
-                    ),
-                  ],
-                ),
-              );
-              if (confirm == true) {
-                await ref.read(vaultListProvider.notifier).delete(item.id);
-                if (context.mounted) context.go('/home');
+    return PopScope(
+      canPop: navigatorCanPop,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        context.go('/home');
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/home');
               }
             },
-            icon: AppIcon('delete', color: colors.danger),
+            icon: AppIcon('back', color: colors.textPrimary),
           ),
-        ],
-      ),
-      body: ListView(
-        padding: EdgeInsets.all(scale.lg),
-        children: [
-          ...item.fields.entries.where((e) => '${e.value}'.isNotEmpty).map((e) {
-            final key = e.key;
-            final value = '${e.value}';
-            final label = titleCaseLabel(key);
-            if (_sensitiveKeys.contains(key)) {
-              return Padding(
-                padding: EdgeInsets.only(bottom: scale.md),
-                child: MaskedSecretField(
-                  label: label,
-                  value: value,
-                  revealed: _revealed.contains(key),
-                  onToggle: () => _toggleReveal(key),
-                  onCopy: () => _copySecret(key, value),
-                ),
-              );
-            }
-            return Padding(
-              padding: EdgeInsets.only(bottom: scale.md),
-              child: Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(scale.md),
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: BorderRadius.circular(scale.radiusMd),
-                  border: Border.all(color: colors.border),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
+          title: Text(
+            item.label,
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: scale.fontXl,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          actions: [
+            IconButton(
+              tooltip: 'Edit',
+              onPressed: () => context.push(
+                '/vault/edit/${item.id}',
+                extra: item,
+              ),
+              icon: AppIcon('edit', color: colors.textSecondary),
+            ),
+            IconButton(
+              tooltip: 'Delete',
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: Text(
+                      'Delete item?',
+                      style: TextStyle(fontSize: scale.fontXl),
+                    ),
+                    content: Text(
+                      'This cannot be undone.',
                       style: TextStyle(
                         color: colors.textSecondary,
-                        fontSize: scale.fontSm,
+                        fontSize: scale.fontMd,
                       ),
                     ),
-                    SizedBox(height: scale.xs),
-                    Text(
-                      value,
-                      style: TextStyle(
-                        color: colors.textPrimary,
-                        fontSize: scale.fontLg,
-                        fontWeight: FontWeight.w600,
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel'),
                       ),
-                    ),
-                  ],
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: Text(
+                          'Delete',
+                          style: TextStyle(color: colors.danger),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await ref.read(vaultListProvider.notifier).delete(item.id);
+                  if (context.mounted) context.go('/home');
+                }
+              },
+              icon: AppIcon('delete', color: colors.danger),
+            ),
+          ],
+        ),
+        body: ListView(
+          padding: EdgeInsets.all(scale.lg),
+          children: [
+            ...item.fields.entries.where((e) => '${e.value}'.isNotEmpty).map((e) {
+              final key = e.key;
+              final value = '${e.value}';
+              final label = titleCaseLabel(key);
+              if (_sensitiveKeys.contains(key)) {
+                return Padding(
+                  padding: EdgeInsets.only(bottom: scale.md),
+                  child: MaskedSecretField(
+                    label: label,
+                    value: value,
+                    revealed: _revealed.contains(key),
+                    onToggle: () => _toggleReveal(key),
+                    onCopy: () => _copySecret(key, value),
+                  ),
+                );
+              }
+              return Padding(
+                padding: EdgeInsets.only(bottom: scale.md),
+                child: Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(scale.md),
+                  decoration: BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(scale.radiusMd),
+                    border: Border.all(color: colors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: scale.fontSm,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: scale.xs),
+                      Text(
+                        value,
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: scale.fontLg,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              );
+            }),
+            SizedBox(height: scale.md),
+            Text(
+              'Created ${dateFormat.format(item.createdAt)}',
+              style: TextStyle(
+                color: colors.textTertiary,
+                fontSize: scale.fontSm,
               ),
-            );
-          }),
-          SizedBox(height: scale.md),
-          Text(
-            'Created ${dateFormat.format(item.createdAt)}',
-            style: TextStyle(color: colors.textTertiary, fontSize: scale.fontSm),
-          ),
-          Text(
-            'Updated ${dateFormat.format(item.updatedAt)}',
-            style: TextStyle(color: colors.textTertiary, fontSize: scale.fontSm),
-          ),
-        ],
+            ),
+            Text(
+              'Updated ${dateFormat.format(item.updatedAt)}',
+              style: TextStyle(
+                color: colors.textTertiary,
+                fontSize: scale.fontSm,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

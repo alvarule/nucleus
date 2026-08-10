@@ -124,10 +124,23 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          },
           icon: AppIcon('back', color: colors.textPrimary),
         ),
-        title: Text(isEdit ? 'Edit ${widget.type.label}' : 'New ${widget.type.label}'),
+        title: Text(
+          isEdit ? 'Edit ${widget.type.label}' : 'New ${widget.type.label}',
+          style: TextStyle(
+            color: colors.textPrimary,
+            fontSize: scale.fontXl,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
       body: SafeArea(
         child: Form(
@@ -271,7 +284,15 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
         );
       }
       await ref.read(vaultListProvider.notifier).refresh();
-      if (mounted) context.go('/vault/${saved.id}');
+      if (!mounted) return;
+      // `go` would wipe the stack (back exits the app). Land on home, then
+      // push detail so Android/app-bar back returns to the vault list.
+      final router = GoRouter.of(context);
+      final detailPath = '/vault/${saved.id}';
+      router.go('/home');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        router.push(detailPath);
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
