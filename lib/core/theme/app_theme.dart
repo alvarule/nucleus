@@ -27,6 +27,62 @@ abstract final class AppTheme {
       scaffoldBackgroundColor: colors.bg,
       extensions: [colors],
       fontFamily: 'Roboto',
+      textTheme: TextTheme(
+        displayLarge: TextStyle(
+          color: colors.textPrimary,
+          fontSize: 28,
+          fontWeight: FontWeight.w700,
+          height: 1.25,
+        ),
+        headlineMedium: TextStyle(
+          color: colors.textPrimary,
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          height: 1.3,
+        ),
+        titleLarge: TextStyle(
+          color: colors.textPrimary,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          height: 1.3,
+        ),
+        titleMedium: TextStyle(
+          color: colors.textPrimary,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          height: 1.35,
+        ),
+        bodyLarge: TextStyle(
+          color: colors.textPrimary,
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          height: 1.4,
+        ),
+        bodyMedium: TextStyle(
+          color: colors.textPrimary,
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          height: 1.4,
+        ),
+        bodySmall: TextStyle(
+          color: colors.textSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+          height: 1.35,
+        ),
+        labelLarge: TextStyle(
+          color: colors.textPrimary,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          height: 1.3,
+        ),
+        labelMedium: TextStyle(
+          color: colors.textSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          height: 1.3,
+        ),
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: colors.bg,
         foregroundColor: colors.textPrimary,
@@ -37,15 +93,27 @@ abstract final class AppTheme {
             : SystemUiOverlayStyle.dark,
         titleTextStyle: TextStyle(
           color: colors.textPrimary,
-          fontSize: 22,
+          fontSize: 20,
           fontWeight: FontWeight.w700,
+        ),
+      ),
+      listTileTheme: ListTileThemeData(
+        titleTextStyle: TextStyle(
+          color: colors.textPrimary,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+        subtitleTextStyle: TextStyle(
+          color: colors.textSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: colors.surface,
-        hintStyle: TextStyle(color: colors.textTertiary),
-        labelStyle: TextStyle(color: colors.textSecondary),
+        hintStyle: TextStyle(color: colors.textTertiary, fontSize: 14),
+        labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -83,7 +151,7 @@ abstract final class AppTheme {
       dividerTheme: DividerThemeData(color: colors.border, thickness: 1),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: colors.surfaceMuted,
-        contentTextStyle: TextStyle(color: colors.textPrimary),
+        contentTextStyle: TextStyle(color: colors.textPrimary, fontSize: 14),
         behavior: SnackBarBehavior.floating,
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
@@ -92,6 +160,16 @@ abstract final class AppTheme {
         unselectedItemColor: colors.textTertiary,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return TextStyle(
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+            color: selected ? colors.primary : colors.textTertiary,
+          );
+        }),
       ),
     );
   }

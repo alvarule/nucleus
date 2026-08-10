@@ -119,7 +119,7 @@ class SettingsPage extends ConsumerWidget {
           ),
           SizedBox(height: scale.lg),
           PrimaryButton(
-            label: 'Sign Out',
+            label: 'Log Out',
             onPressed: () => _confirmSignOut(context, ref),
           ),
         ],
@@ -166,7 +166,7 @@ class SettingsPage extends ConsumerWidget {
                     'Auto-lock vault',
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      fontSize: 18,
+                      fontSize: Scale.of(ctx).fontXl,
                       color: colors.textPrimary,
                     ),
                   ),
@@ -175,7 +175,10 @@ class SettingsPage extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                   child: Text(
                     'Locks after inactivity. The vault still locks when the app goes to background.',
-                    style: TextStyle(color: colors.textSecondary, fontSize: 13),
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: Scale.of(ctx).fontMd,
+                    ),
                   ),
                 ),
                 ...VaultAutoLockOption.values.map(
@@ -225,7 +228,7 @@ class SettingsPage extends ConsumerWidget {
                     'Re-auth for secrets',
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      fontSize: 18,
+                      fontSize: Scale.of(ctx).fontXl,
                       color: colors.textPrimary,
                     ),
                   ),
@@ -234,7 +237,10 @@ class SettingsPage extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                   child: Text(
                     'Controls how often reveal and copy ask for fingerprint or master password.',
-                    style: TextStyle(color: colors.textSecondary, fontSize: 13),
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: Scale.of(ctx).fontMd,
+                    ),
                   ),
                 ),
                 ...RevealGraceOption.values.map(
@@ -266,7 +272,7 @@ class SettingsPage extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Sign Out?'),
+        title: const Text('Log Out?'),
         content: const Text(
           'You will need your master password to unlock again.',
         ),
@@ -277,7 +283,7 @@ class SettingsPage extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Sign Out', style: TextStyle(color: colors.danger)),
+            child: Text('Log Out', style: TextStyle(color: colors.danger)),
           ),
         ],
       ),
@@ -307,10 +313,19 @@ class _SecurityTile extends StatelessWidget {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: AppIcon(icon, color: colors.primary),
-      title: Text(title),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: Scale.of(context).fontLg,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(color: colors.textSecondary),
+        style: TextStyle(
+          color: colors.textSecondary,
+          fontSize: Scale.of(context).fontSm,
+        ),
       ),
       trailing: AppIcon('chevron_right', color: colors.textTertiary),
       onTap: onTap,

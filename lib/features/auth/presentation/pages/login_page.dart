@@ -124,7 +124,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 ],
                 SizedBox(height: scale.lg),
                 PrimaryButton(
-                  label: 'Unlock',
+                  label: 'Log In',
                   loading: auth.loading,
                   onPressed: _submit,
                 ),

@@ -51,7 +51,7 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Sign Out?'),
+        title: const Text('Log Out?'),
         content: const Text('You will need your master password to unlock again.'),
         actions: [
           TextButton(
@@ -60,7 +60,7 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Sign Out', style: TextStyle(color: colors.danger)),
+            child: Text('Log Out', style: TextStyle(color: colors.danger)),
           ),
         ],
       ),
@@ -169,14 +169,14 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
               ],
               SizedBox(height: scale.lg),
               PrimaryButton(
-                label: 'Continue',
+                label: 'Unlock',
                 loading: session.status == VaultSessionStatus.unlocking,
                 onPressed: _submitPassword,
               ),
               const Spacer(),
               TextButton(
                 onPressed: _confirmSignOut,
-                child: Text('Sign Out', style: TextStyle(color: colors.textSecondary)),
+                child: Text('Log Out', style: TextStyle(color: colors.textSecondary)),
               ),
             ],
           ),

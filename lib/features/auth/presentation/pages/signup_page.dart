@@ -127,7 +127,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                 ],
                 SizedBox(height: scale.lg),
                 PrimaryButton(
-                  label: 'Create vault',
+                  label: 'Create Vault',
                   loading: auth.loading,
                   onPressed: _submit,
                 ),

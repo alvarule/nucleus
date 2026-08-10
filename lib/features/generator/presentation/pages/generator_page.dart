@@ -72,7 +72,10 @@ class _GeneratorPageState extends ConsumerState<GeneratorPage> {
           SizedBox(height: scale.lg),
           Text(
             'Length: ${_length.round()}',
-            style: TextStyle(color: colors.textSecondary),
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: scale.fontMd,
+            ),
           ),
           Slider(
             value: _length,

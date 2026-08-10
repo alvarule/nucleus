@@ -79,7 +79,10 @@ class HealthPage extends ConsumerWidget {
           if (rows.isEmpty)
             Text(
               'Add password items to see health insights.',
-              style: TextStyle(color: colors.textSecondary),
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: scale.fontMd,
+              ),
             )
           else
             ...rows.map((row) {
@@ -109,6 +112,7 @@ class HealthPage extends ConsumerWidget {
                             row.item.label,
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
+                              fontSize: scale.fontLg,
                               color: colors.textPrimary,
                             ),
                           ),
