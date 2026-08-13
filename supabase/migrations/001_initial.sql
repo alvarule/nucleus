@@ -1,4 +1,4 @@
--- Vaultify initial schema
+-- Nucleus initial schema
 -- Apply in Supabase SQL editor (or via CLI). Enable Email auth in dashboard.
 
 create extension if not exists "pgcrypto";

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:vaultify/core/theme/app_colors.dart';
+import 'package:nucleus/core/theme/app_colors.dart';
 
 abstract final class AppTheme {
   static ThemeData light() => _build(AppColors.light, Brightness.light);

@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:vaultify/features/vault/domain/entities/vault_item.dart';
+import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
 
 abstract class VaultRepository {
   Future<List<VaultItem>> listItems({

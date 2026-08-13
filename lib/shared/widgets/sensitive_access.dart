@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:vaultify/core/theme/app_colors.dart';
-import 'package:vaultify/features/unlock/presentation/providers/vault_session_provider.dart';
-import 'package:vaultify/shared/widgets/vault_text_field.dart';
+import 'package:nucleus/core/theme/app_colors.dart';
+import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
+import 'package:nucleus/shared/widgets/vault_text_field.dart';
 
 /// Ensures the user passed biometric or master-password gate for sensitive actions.
 Future<bool> ensureSensitiveAccess(

@@ -3,10 +3,10 @@ import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
-import 'package:vaultify/core/crypto/vault_crypto_service.dart';
-import 'package:vaultify/core/errors/app_exception.dart';
-import 'package:vaultify/features/vault/domain/entities/vault_item.dart';
-import 'package:vaultify/features/vault/domain/repositories/vault_repository.dart';
+import 'package:nucleus/core/crypto/vault_crypto_service.dart';
+import 'package:nucleus/core/errors/app_exception.dart';
+import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
+import 'package:nucleus/features/vault/domain/repositories/vault_repository.dart';
 
 class VaultRepositoryImpl implements VaultRepository {
   VaultRepositoryImpl(this._client, this._crypto);

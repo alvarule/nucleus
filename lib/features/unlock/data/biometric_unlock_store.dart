@@ -33,7 +33,7 @@ class BiometricUnlockStore {
     }
   }
 
-  Future<bool> authenticate({String reason = 'Unlock Vaultify'}) async {
+  Future<bool> authenticate({String reason = 'Unlock Nucleus'}) async {
     _authDepth++;
     try {
       return await _localAuth.authenticate(

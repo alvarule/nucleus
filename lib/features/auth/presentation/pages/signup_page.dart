@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:vaultify/core/responsive/scale.dart';
-import 'package:vaultify/core/theme/app_colors.dart';
-import 'package:vaultify/features/auth/presentation/providers/auth_controller.dart';
-import 'package:vaultify/shared/widgets/app_icon.dart';
-import 'package:vaultify/shared/widgets/vault_text_field.dart';
+import 'package:nucleus/core/responsive/scale.dart';
+import 'package:nucleus/core/theme/app_colors.dart';
+import 'package:nucleus/features/auth/presentation/providers/auth_controller.dart';
+import 'package:nucleus/shared/widgets/app_icon.dart';
+import 'package:nucleus/shared/widgets/vault_text_field.dart';
 
 class SignupPage extends ConsumerStatefulWidget {
   const SignupPage({super.key});

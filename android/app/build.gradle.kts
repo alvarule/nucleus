@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.vaultify.vaultify"
+    namespace = "com.nucleus.nucleus"
     // flutter_secure_storage 11 requires compileSdk 37 (AAR metadata).
     compileSdk = 37
     ndkVersion = flutter.ndkVersion
@@ -16,7 +16,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.vaultify.vaultify"
+        applicationId = "com.nucleus.nucleus"
         minSdk = 24
         targetSdk = 36
         versionCode = flutter.versionCode

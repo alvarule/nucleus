@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:vaultify/core/crypto/vault_crypto_service.dart';
-import 'package:vaultify/core/di/providers.dart';
-import 'package:vaultify/core/errors/app_exception.dart';
-import 'package:vaultify/features/unlock/presentation/providers/vault_session_provider.dart';
+import 'package:nucleus/core/crypto/vault_crypto_service.dart';
+import 'package:nucleus/core/di/providers.dart';
+import 'package:nucleus/core/errors/app_exception.dart';
+import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
 
 class AuthFormState {
   const AuthFormState({

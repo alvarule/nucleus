@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:vaultify/core/di/providers.dart';
-import 'package:vaultify/core/theme/app_colors.dart';
-import 'package:vaultify/features/profile/domain/entities/user_profile.dart';
-import 'package:vaultify/shared/widgets/app_icon.dart';
+import 'package:nucleus/core/di/providers.dart';
+import 'package:nucleus/core/theme/app_colors.dart';
+import 'package:nucleus/features/profile/domain/entities/user_profile.dart';
+import 'package:nucleus/shared/widgets/app_icon.dart';
 
 class AvatarWidget extends ConsumerWidget {
   const AvatarWidget({

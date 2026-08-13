@@ -3,7 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:screen_protector/screen_protector.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:vaultify/app.dart';
+import 'package:nucleus/app.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,5 +34,5 @@ Future<void> main() async {
     // Platform may not support during tests.
   }
 
-  runApp(const ProviderScope(child: VaultifyApp()));
+  runApp(const ProviderScope(child: NucleusApp()));
 }

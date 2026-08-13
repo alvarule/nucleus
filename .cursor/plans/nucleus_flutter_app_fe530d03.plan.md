@@ -1,6 +1,6 @@
 ---
-name: Vaultify Flutter App
-overview: "Vaultify Android-first password manager: Clean Architecture + Riverpod + go_router, Rose vault hand-authored palette (#F21649), login vs fingerprint/password unlock gates, ZK encryption, brand Lottie loader, 60 PNG avatars — you apply Supabase schema."
+name: Nucleus Flutter App
+overview: "Nucleus Android-first password manager: Clean Architecture + Riverpod + go_router, Rose vault hand-authored palette (#F21649), login vs fingerprint/password unlock gates, ZK encryption, brand Lottie loader, 60 PNG avatars — you apply Supabase schema."
 todos:
   - id: bootstrap
     content: Scaffold Clean Architecture app, explicit Rose vault theme (no fromSeed), go_router, brand Lottie loader, env template
@@ -26,7 +26,7 @@ todos:
 isProject: false
 ---
 
-# Vaultify — Flutter + Supabase Password Manager
+# Nucleus — Flutter + Supabase Password Manager
 
 ## Decisions locked
 
@@ -35,7 +35,7 @@ isProject: false
 - **Platform:** Android first (iOS later; keep code cross-platform-ready)
 - **Supabase:** You create the project and apply SQL I provide; share **URL + anon key** only (never service role in the app)
 - **Avatars:** 60 preset **PNG** assets you provide; custom gallery upload also supported
-- **Loading:** Brand-matched Lottie at `assets/animations/loading.json` (created for Vaultify palette — not `ColorScheme.fromSeed`)
+- **Loading:** Brand-matched Lottie at `assets/animations/loading.json` (created for Nucleus palette — not `ColorScheme.fromSeed`)
 - **Re-auth gate:** Full login = email + master password; app resume / vault open / reveal secrets = master password **or** fingerprint
 
 ## Color system (final — hand-authored, not fromSeed)
@@ -144,7 +144,7 @@ Same pattern for `auth`, `unlock`, `profile`, `generator`, `health`, `settings`.
 
 ## Project bootstrap
 
-- Create Flutter app in repo root (`vaultify` / `passmngr`)
+- Create Flutter app in repo root (`nucleus` / `passmngr`)
 - Android min SDK suitable for biometrics + secure flags
 - Env via `--dart-define` or `flutter_dotenv` (`.env` gitignored; `.env.example` committed)
 - Packages (core): `flutter_riverpod`, `riverpod_annotation`, `go_router`, `supabase_flutter`, `flutter_secure_storage`, `local_auth`, `cryptography` (or PointyCastle), `flutter_svg`, `lottie`, `image_picker`, `freezed` + `json_serializable`, screenshot restriction package (`screen_protector` / equivalent for `FLAG_SECURE`)

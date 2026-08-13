@@ -1,6 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:vaultify/core/errors/app_exception.dart';
-import 'package:vaultify/features/auth/domain/repositories/auth_repository.dart';
+import 'package:nucleus/core/errors/app_exception.dart';
+import 'package:nucleus/features/auth/domain/repositories/auth_repository.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   AuthRepositoryImpl(this._client);

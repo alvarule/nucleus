@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:vaultify/core/di/providers.dart';
-import 'package:vaultify/core/responsive/scale.dart';
-import 'package:vaultify/core/theme/app_colors.dart';
-import 'package:vaultify/features/unlock/presentation/providers/vault_session_provider.dart';
-import 'package:vaultify/shared/widgets/app_icon.dart';
-import 'package:vaultify/shared/widgets/vault_text_field.dart';
+import 'package:nucleus/core/di/providers.dart';
+import 'package:nucleus/core/responsive/scale.dart';
+import 'package:nucleus/core/theme/app_colors.dart';
+import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
+import 'package:nucleus/shared/widgets/app_icon.dart';
+import 'package:nucleus/shared/widgets/vault_text_field.dart';
 
 class UnlockPage extends ConsumerStatefulWidget {
   const UnlockPage({super.key});

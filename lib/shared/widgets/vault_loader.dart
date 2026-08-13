@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
-import 'package:vaultify/core/responsive/scale.dart';
+import 'package:nucleus/core/responsive/scale.dart';
 
 class VaultLoader extends StatelessWidget {
   const VaultLoader({super.key, this.size});

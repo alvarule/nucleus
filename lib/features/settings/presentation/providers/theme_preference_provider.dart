@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:vaultify/features/profile/domain/entities/user_profile.dart';
-import 'package:vaultify/features/unlock/presentation/providers/vault_session_provider.dart';
+import 'package:nucleus/features/profile/domain/entities/user_profile.dart';
+import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
 
 class ThemePreferenceNotifier extends StateNotifier<ThemePreference> {
   ThemePreferenceNotifier(this._ref) : super(ThemePreference.system) {

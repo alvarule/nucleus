@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:vaultify/core/theme/app_colors.dart';
-import 'package:vaultify/shared/widgets/app_icon.dart';
+import 'package:nucleus/core/theme/app_colors.dart';
+import 'package:nucleus/shared/widgets/app_icon.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key, required this.navigationShell});

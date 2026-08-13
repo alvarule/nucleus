@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:vaultify/core/lifecycle/vault_lifecycle_observer.dart';
-import 'package:vaultify/core/theme/app_theme.dart';
-import 'package:vaultify/features/profile/domain/entities/user_profile.dart';
-import 'package:vaultify/features/settings/presentation/providers/theme_preference_provider.dart';
-import 'package:vaultify/features/unlock/presentation/providers/vault_session_provider.dart';
-import 'package:vaultify/router/app_router.dart';
+import 'package:nucleus/core/lifecycle/vault_lifecycle_observer.dart';
+import 'package:nucleus/core/theme/app_theme.dart';
+import 'package:nucleus/features/profile/domain/entities/user_profile.dart';
+import 'package:nucleus/features/settings/presentation/providers/theme_preference_provider.dart';
+import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
+import 'package:nucleus/router/app_router.dart';
 
-class VaultifyApp extends ConsumerStatefulWidget {
-  const VaultifyApp({super.key});
+class NucleusApp extends ConsumerStatefulWidget {
+  const NucleusApp({super.key});
 
   @override
-  ConsumerState<VaultifyApp> createState() => _VaultifyAppState();
+  ConsumerState<NucleusApp> createState() => _NucleusAppState();
 }
 
-class _VaultifyAppState extends ConsumerState<VaultifyApp> {
+class _NucleusAppState extends ConsumerState<NucleusApp> {
   late final VaultLifecycleObserver _observer;
 
   @override
@@ -42,7 +42,7 @@ class _VaultifyAppState extends ConsumerState<VaultifyApp> {
     };
 
     return MaterialApp.router(
-      title: 'Vaultify',
+      title: 'Nucleus',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),

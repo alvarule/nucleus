@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:vaultify/core/responsive/scale.dart';
-import 'package:vaultify/core/theme/app_colors.dart';
+import 'package:nucleus/core/responsive/scale.dart';
+import 'package:nucleus/core/theme/app_colors.dart';
 
 class AppIcon extends StatelessWidget {
   const AppIcon(

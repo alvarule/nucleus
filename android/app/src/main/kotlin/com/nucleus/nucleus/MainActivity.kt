@@ -1,4 +1,4 @@
-package com.vaultify.vaultify
+package com.nucleus.nucleus
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

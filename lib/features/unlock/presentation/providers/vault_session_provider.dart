@@ -3,12 +3,12 @@ import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:vaultify/core/crypto/vault_crypto_service.dart';
-import 'package:vaultify/core/di/providers.dart';
-import 'package:vaultify/core/errors/app_exception.dart';
-import 'package:vaultify/features/profile/domain/entities/user_profile.dart';
-import 'package:vaultify/features/settings/domain/security_timeouts.dart';
-import 'package:vaultify/features/settings/presentation/providers/security_preference_provider.dart';
+import 'package:nucleus/core/crypto/vault_crypto_service.dart';
+import 'package:nucleus/core/di/providers.dart';
+import 'package:nucleus/core/errors/app_exception.dart';
+import 'package:nucleus/features/profile/domain/entities/user_profile.dart';
+import 'package:nucleus/features/settings/domain/security_timeouts.dart';
+import 'package:nucleus/features/settings/presentation/providers/security_preference_provider.dart';
 
 enum VaultSessionStatus { locked, unlocking, unlocked }
 

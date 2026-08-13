@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vaultify/core/crypto/vault_crypto_service.dart';
-import 'package:vaultify/features/generator/domain/password_generator.dart';
+import 'package:nucleus/core/crypto/vault_crypto_service.dart';
+import 'package:nucleus/features/generator/domain/password_generator.dart';
 
 void main() {
   test('wrap and unwrap DEK', () async {

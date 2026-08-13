@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:vaultify/core/di/providers.dart';
-import 'package:vaultify/features/auth/presentation/pages/login_page.dart';
-import 'package:vaultify/features/auth/presentation/pages/signup_page.dart';
-import 'package:vaultify/features/generator/presentation/pages/generator_page.dart';
-import 'package:vaultify/features/health/presentation/pages/health_page.dart';
-import 'package:vaultify/features/profile/presentation/pages/profile_page.dart';
-import 'package:vaultify/features/settings/presentation/pages/change_master_password_page.dart';
-import 'package:vaultify/features/settings/presentation/pages/settings_page.dart';
-import 'package:vaultify/features/unlock/presentation/pages/unlock_page.dart';
-import 'package:vaultify/features/unlock/presentation/providers/vault_session_provider.dart';
-import 'package:vaultify/features/vault/domain/entities/vault_item.dart';
-import 'package:vaultify/features/vault/presentation/pages/vault_home_page.dart';
-import 'package:vaultify/features/vault/presentation/pages/vault_item_detail_page.dart';
-import 'package:vaultify/features/vault/presentation/pages/vault_item_form_page.dart';
-import 'package:vaultify/shared/widgets/app_shell.dart';
-import 'package:vaultify/shared/widgets/vault_loader.dart';
+import 'package:nucleus/core/di/providers.dart';
+import 'package:nucleus/features/auth/presentation/pages/login_page.dart';
+import 'package:nucleus/features/auth/presentation/pages/signup_page.dart';
+import 'package:nucleus/features/generator/presentation/pages/generator_page.dart';
+import 'package:nucleus/features/health/presentation/pages/health_page.dart';
+import 'package:nucleus/features/profile/presentation/pages/profile_page.dart';
+import 'package:nucleus/features/settings/presentation/pages/change_master_password_page.dart';
+import 'package:nucleus/features/settings/presentation/pages/settings_page.dart';
+import 'package:nucleus/features/unlock/presentation/pages/unlock_page.dart';
+import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
+import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
+import 'package:nucleus/features/vault/presentation/pages/vault_home_page.dart';
+import 'package:nucleus/features/vault/presentation/pages/vault_item_detail_page.dart';
+import 'package:nucleus/features/vault/presentation/pages/vault_item_form_page.dart';
+import 'package:nucleus/shared/widgets/app_shell.dart';
+import 'package:nucleus/shared/widgets/vault_loader.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
 
@@ -171,6 +171,6 @@ class _SplashPageState extends ConsumerState<_SplashPage> {
 
   @override
   Widget build(BuildContext context) {
-    return const VaultLoadingScaffold(message: 'Opening Vaultify…');
+    return const VaultLoadingScaffold(message: 'Opening Nucleus…');
   }
 }

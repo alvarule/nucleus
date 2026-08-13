@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:vaultify/core/responsive/scale.dart';
-import 'package:vaultify/core/theme/app_colors.dart';
-import 'package:vaultify/shared/widgets/app_icon.dart';
+import 'package:nucleus/core/responsive/scale.dart';
+import 'package:nucleus/core/theme/app_colors.dart';
+import 'package:nucleus/shared/widgets/app_icon.dart';
 
 class MaskedSecretField extends StatelessWidget {
   const MaskedSecretField({

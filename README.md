@@ -1,4 +1,4 @@
-# Vaultify
+# Nucleus
 
 Zero-knowledge password manager for Android (Flutter + Supabase).
 

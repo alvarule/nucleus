@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:vaultify/core/di/providers.dart';
-import 'package:vaultify/features/unlock/presentation/providers/vault_session_provider.dart';
-import 'package:vaultify/features/vault/domain/entities/vault_item.dart';
+import 'package:nucleus/core/di/providers.dart';
+import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
+import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
 
 class VaultListState {
   const VaultListState({

@@ -1,4 +1,4 @@
-import 'package:vaultify/features/profile/domain/entities/user_profile.dart';
+import 'package:nucleus/features/profile/domain/entities/user_profile.dart';
 
 abstract class AuthRepository {
   Stream<String?> authStateChanges();

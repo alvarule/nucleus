@@ -1,9 +1,9 @@
 import 'dart:io';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:vaultify/core/errors/app_exception.dart' as app;
-import 'package:vaultify/features/auth/domain/repositories/auth_repository.dart';
-import 'package:vaultify/features/profile/domain/entities/user_profile.dart';
+import 'package:nucleus/core/errors/app_exception.dart' as app;
+import 'package:nucleus/features/auth/domain/repositories/auth_repository.dart';
+import 'package:nucleus/features/profile/domain/entities/user_profile.dart';
 
 class ProfileRepositoryImpl implements ProfileRepository {
   ProfileRepositoryImpl(this._client);
