@@ -89,14 +89,6 @@ class SettingsPage extends ConsumerWidget {
             subtitle: security.revealGrace.label,
             onTap: () => _pickRevealGrace(context, ref, security.revealGrace),
           ),
-          SizedBox(height: scale.md),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: AppIcon('user', color: colors.primary),
-            title: const Text('Profile'),
-            trailing: AppIcon('chevron_right', color: colors.textTertiary),
-            onTap: () => context.push('/profile'),
-          ),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: AppIcon('lock', color: colors.primary),
