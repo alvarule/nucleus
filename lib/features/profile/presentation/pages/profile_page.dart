@@ -58,7 +58,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         padding: EdgeInsets.all(scale.lg),
         children: [
           Center(
-            child: AvatarWidget(profile: profile, size: scale.s(96)),
+            child: Hero(tag: 'profile_avatar', child: AvatarWidget(profile: profile, size: scale.s(96))),
           ),
           SizedBox(height: scale.md),
           Row(

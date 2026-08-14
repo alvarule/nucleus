@@ -149,6 +149,7 @@ class SettingsPage extends ConsumerWidget {
     final colors = context.colors;
     final selected = await showModalBottomSheet<VaultAutoLockOption>(
       context: context,
+      showDragHandle: true,
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -211,6 +212,7 @@ class SettingsPage extends ConsumerWidget {
     final colors = context.colors;
     final selected = await showModalBottomSheet<RevealGraceOption>(
       context: context,
+      showDragHandle: true,
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),

@@ -60,28 +60,48 @@ class MaskedSecretField extends StatelessWidget {
                   ),
                 ),
               ),
-              IconButton(
-                tooltip: revealed ? 'Hide' : 'Show',
-                onPressed: onToggle,
-                icon: AppIcon(
-                  revealed ? 'eye_off' : 'eye',
-                  color: colors.primary,
-                ),
-              ),
+              // IconButton(
+              //   tooltip: revealed ? 'Hide' : 'Show',
+              //   onPressed: onToggle,
+              //   icon: AppIcon(
+              //     revealed ? 'eye_off' : 'eye',
+              //     color: colors.primary,
+              //   ),
+              // ),
+              // if (canCopy)
+              //   IconButton(
+              //     tooltip: 'Copy',
+              //     onPressed: onCopy ??
+              //         () async {
+              //           await Clipboard.setData(ClipboardData(text: value));
+              //           if (context.mounted) {
+              //             ScaffoldMessenger.of(context).showSnackBar(
+              //               const SnackBar(content: Text('Copied')),
+              //             );
+              //           }
+              //         },
+              //     icon: AppIcon('copy', color: colors.textSecondary),
+              //   ),
+    InkWell(
+      onTap: onToggle,
+      child: AppIcon(
+        revealed ? 'eye_off' : 'eye',
+        color: colors.primary,
+      ),
+    ),
+    if (canCopy) SizedBox(width: scale.md),
               if (canCopy)
-                IconButton(
-                  tooltip: 'Copy',
-                  onPressed: onCopy ??
-                      () async {
-                        await Clipboard.setData(ClipboardData(text: value));
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Copied')),
-                          );
-                        }
-                      },
-                  icon: AppIcon('copy', color: colors.textSecondary),
-                ),
+      InkWell(
+        onTap: onCopy ?? () async {
+          await Clipboard.setData(ClipboardData(text: value));
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Copied')),
+            );
+          }
+        },
+        child: AppIcon('copy', color: colors.textSecondary),
+      ),
             ],
           ),
         ],

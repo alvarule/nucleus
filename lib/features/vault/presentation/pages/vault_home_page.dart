@@ -119,17 +119,26 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
           titleSpacing: scale.md,
           title: Row(
             children: [
-              if (profile != null)
-                AvatarWidget(profile: profile, size: scale.s(36))
-              else
-                _PlaceholderAvatar(size: scale.s(36)),
+              // if (profile != null)
+              //   AvatarWidget(profile: profile, size: scale.s(36))
+              // else
+              //   _PlaceholderAvatar(size: scale.s(36)),
+              GestureDetector(
+                onTap: () {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  context.push('/profile');
+                },
+                child: profile != null ? 
+                Hero(tag: 'profile_avatar', child:AvatarWidget(profile: profile, size: scale.s(36))) : 
+                Hero(tag: 'profile_avatar', child: _PlaceholderAvatar(size: scale.s(36))),
+              ),
               SizedBox(width: scale.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Welcome',
+                      'Hello',
                       style: TextStyle(
                         color: colors.textSecondary,
                         fontSize: scale.fontSm,
@@ -152,15 +161,15 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
               ),
             ],
           ),
-          actions: [
-            IconButton(
-              onPressed: () {
-                FocusManager.instance.primaryFocus?.unfocus();
-                context.push('/profile');
-              },
-              icon: AppIcon('user', color: colors.primary),
-            ),
-          ],
+          // actions: [
+          //   IconButton(
+          //     onPressed: () {
+          //       FocusManager.instance.primaryFocus?.unfocus();
+          //       context.push('/profile');
+          //     },
+          //     icon: AppIcon('user', color: colors.primary),
+          //   ),
+          // ],
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: () {
