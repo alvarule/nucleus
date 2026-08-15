@@ -1,6 +1,6 @@
 ---
 name: Nucleus Flutter App
-overview: "Nucleus Android-first password manager: Clean Architecture + Riverpod + go_router, Rose vault hand-authored palette (#F21649), login vs fingerprint/password unlock gates, ZK encryption, brand Lottie loader, 60 PNG avatars — you apply Supabase schema."
+overview: "Nucleus Android-first password manager: Clean Architecture + Riverpod + go_router, Rose vault hand-authored palette (#F21649), login vs fingerprint/password unlock gates, ZK encryption, brand Lottie loader, 60 PNG avatars. Settings (appearance/auto-lock/re-auth/change master password/lock/logout) separate from Profile, Home-rooted back stacks. You apply the Supabase schema."
 todos:
   - id: bootstrap
     content: Scaffold Clean Architecture app, explicit Rose vault theme (no fromSeed), go_router, brand Lottie loader, env template
@@ -11,8 +11,11 @@ todos:
   - id: crypto-auth
     content: Auth login (email+password); unlock/reveal gates (fingerprint OR master password); DEK session lock on background
     status: completed
-  - id: profile-theme
-    content: Profile (name, 60 PNG preset avatars or custom upload), theme preference sync to profiles
+  - id: profile
+    content: Separate Profile page from Home (editable name, read-only email, 60 PNG presets or custom upload). No theme/lock/logout on Profile.
+    status: completed
+  - id: settings
+    content: Settings — appearance, auto-lock timers, re-auth for secrets, change master password, lock vault now, logout. No profile navigation.
     status: completed
   - id: vault-crud
     content: Vault list/detail/forms; masked secrets; fingerprint/password to reveal
@@ -22,6 +25,9 @@ todos:
     status: completed
   - id: android-hardening
     content: FLAG_SECURE screenshot block, biometrics, Android-first polish + README
+    status: completed
+  - id: navigation-stacks
+    content: Home-rooted stacks and Android back (double-back exit on Home; pop elsewhere; generator save replaces to home then details)
     status: completed
 isProject: false
 ---
@@ -37,6 +43,8 @@ isProject: false
 - **Avatars:** 60 preset **PNG** assets you provide; custom gallery upload also supported
 - **Loading:** Brand-matched Lottie at `assets/animations/loading.json` (created for Nucleus palette — not `ColorScheme.fromSeed`)
 - **Re-auth gate:** Full login = email + master password; app resume / vault open / reveal secrets = master password **or** fingerprint
+- **Settings vs Profile:** Settings owns appearance, lock timers, re-auth grace, change master password, lock now, logout. Profile is a separate page from Home (avatar, name, read-only email). No profile link on Settings.
+- **Navigation:** After unlock, Home is the root. Double-back on Home exits; any other page pops the stack.
 
 ## Color system (final — hand-authored, not fromSeed)
 
@@ -44,43 +52,47 @@ Direction: **Rose vault** — cool neutral canvases, sharp rose-red actions, cal
 
 ### Light
 
-| Token | Hex | Use |
-|-------|-----|-----|
-| `primary` | `#F21649` | CTA, active nav, FAB, focus |
-| `primaryHover` | `#D4143F` | Pressed primary |
-| `primarySoft` | `#FFE5EC` | Chips, selected rows, soft fills |
-| `onPrimary` | `#FFFFFF` | Text/icons on primary |
-| `bg` | `#F7F8FA` | Scaffold |
-| `surface` | `#FFFFFF` | Sheets, fields, lists |
-| `surfaceMuted` | `#EEF0F3` | Input fill / dividers soft |
-| `border` | `#E2E5EB` | Hairlines |
-| `textPrimary` | `#14151A` | Titles, body |
-| `textSecondary` | `#6B7280` | Hints, meta |
-| `textTertiary` | `#9CA3AF` | Masked dots, placeholders |
-| `success` | `#0D9F6E` | Health strong |
-| `warning` | `#D97706` | Health weak |
-| `danger` | `#E11D48` | Destructive (close to brand, distinct enough) |
-| `overlay` | `#14151A99` | Unlock scrim |
+
+| Token           | Hex         | Use                                           |
+| --------------- | ----------- | --------------------------------------------- |
+| `primary`       | `#F21649`   | CTA, active nav, FAB, focus                   |
+| `primaryHover`  | `#D4143F`   | Pressed primary                               |
+| `primarySoft`   | `#FFE5EC`   | Chips, selected rows, soft fills              |
+| `onPrimary`     | `#FFFFFF`   | Text/icons on primary                         |
+| `bg`            | `#F7F8FA`   | Scaffold                                      |
+| `surface`       | `#FFFFFF`   | Sheets, fields, lists                         |
+| `surfaceMuted`  | `#EEF0F3`   | Input fill / dividers soft                    |
+| `border`        | `#E2E5EB`   | Hairlines                                     |
+| `textPrimary`   | `#14151A`   | Titles, body                                  |
+| `textSecondary` | `#6B7280`   | Hints, meta                                   |
+| `textTertiary`  | `#9CA3AF`   | Masked dots, placeholders                     |
+| `success`       | `#0D9F6E`   | Health strong                                 |
+| `warning`       | `#D97706`   | Health weak                                   |
+| `danger`        | `#E11D48`   | Destructive (close to brand, distinct enough) |
+| `overlay`       | `#14151A99` | Unlock scrim                                  |
+
 
 ### Dark
 
-| Token | Hex | Use |
-|-------|-----|-----|
-| `primary` | `#FF4D73` | Slightly lifted for contrast on dark |
-| `primaryHover` | `#F21649` | Pressed |
-| `primarySoft` | `#3D1524` | Soft brand container |
-| `onPrimary` | `#FFFFFF` | |
-| `bg` | `#0F1014` | Scaffold |
-| `surface` | `#1A1B22` | Lists, sheets |
-| `surfaceMuted` | `#24262F` | Inputs |
-| `border` | `#2E303A` | |
-| `textPrimary` | `#F4F4F5` | |
-| `textSecondary` | `#A1A1AA` | |
-| `textTertiary` | `#71717A` | |
-| `success` | `#34D399` | |
-| `warning` | `#FBBF24` | |
-| `danger` | `#FB7185` | |
-| `overlay` | `#000000B3` | |
+
+| Token           | Hex         | Use                                  |
+| --------------- | ----------- | ------------------------------------ |
+| `primary`       | `#FF4D73`   | Slightly lifted for contrast on dark |
+| `primaryHover`  | `#F21649`   | Pressed                              |
+| `primarySoft`   | `#3D1524`   | Soft brand container                 |
+| `onPrimary`     | `#FFFFFF`   |                                      |
+| `bg`            | `#0F1014`   | Scaffold                             |
+| `surface`       | `#1A1B22`   | Lists, sheets                        |
+| `surfaceMuted`  | `#24262F`   | Inputs                               |
+| `border`        | `#2E303A`   |                                      |
+| `textPrimary`   | `#F4F4F5`   |                                      |
+| `textSecondary` | `#A1A1AA`   |                                      |
+| `textTertiary`  | `#71717A`   |                                      |
+| `success`       | `#34D399`   |                                      |
+| `warning`       | `#FBBF24`   |                                      |
+| `danger`        | `#FB7185`   |                                      |
+| `overlay`       | `#000000B3` |                                      |
+
 
 Theme is built with explicit `ColorScheme` + custom `AppColors` extension (and text/button themes). **Do not use `ColorScheme.fromSeed`.**
 
@@ -124,6 +136,8 @@ flowchart TB
   DS --> SB[(Supabase)]
 ```
 
+
+
 **Clean Architecture rules (enforced in structure):**
 
 - **Domain** has zero Flutter/Supabase imports — entities, repository contracts, use cases only
@@ -149,6 +163,7 @@ Same pattern for `auth`, `unlock`, `profile`, `generator`, `health`, `settings`.
 - Env via `--dart-define` or `flutter_dotenv` (`.env` gitignored; `.env.example` committed)
 - Packages (core): `flutter_riverpod`, `riverpod_annotation`, `go_router`, `supabase_flutter`, `flutter_secure_storage`, `local_auth`, `cryptography` (or PointyCastle), `flutter_svg`, `lottie`, `image_picker`, `freezed` + `json_serializable`, screenshot restriction package (`screen_protector` / equivalent for `FLAG_SECURE`)
 - Shared loading widget wraps the provided Lottie JSON; used for auth, vault fetch, profile save, etc.
+
 ## Zero-knowledge encryption (v1)
 
 Your approach is sound and supports master-password change. Concrete crypto (simple, strong, not over-engineered):
@@ -166,7 +181,7 @@ Your approach is sound and supports master-password change. Concrete crypto (sim
 
 **Signup flow:** Auth signup → generate salt + DEK → wrap DEK → insert `profiles` row → unlock session.  
 **Login flow:** Auth sign-in → load profile wrap → derive KEK → unwrap DEK → session ready.  
-**Master password change (designed now, UI can be settings later):** unwrap DEK with old password → re-wrap with new → update Auth password + profile wrap in one coordinated flow.
+**Master password change (implemented in Settings):** unwrap DEK with old password → re-wrap with new → update Auth password + profile wrap in one coordinated flow. UI: `/settings/change-master-password`.
 
 Server stores only ciphertext for vault payloads; RLS ensures users only touch their rows.
 
@@ -200,16 +215,16 @@ I will deliver SQL under `supabase/migrations/` covering:
 
 **Payload field contracts (JSON before encrypt):**
 
-- **password:** `label`*, `url`, `username*`, `password*`, `notes`
-- **bank_account:** `label`*, `bank_name*`, `account_type*`, `account_no*`, `ifsc*`, `micr`, `notes`
-- **atm_card:** `label`*, `bank_name*`, `name_on_card*`, `card_type*` (credit/debit), `card_no*`, `cvv*`, `expiry_date*`, `atm_pin`, `upi_pin`, `notes`
-- **note:** `label`*, `notes*`
+- **password:** `label`*, `url`, `username`*, `password*`, `notes`
+- **bank_account:** `label`*, `bank_name`*, `account_type*`, `account_no*`, `ifsc*`, `micr`, `notes`
+- **atm_card:** `label`*, `bank_name`*, `name_on_card*`, `card_type*` (credit/debit), `card_no*`, `cvv*`, `expiry_date*`, `atm_pin`, `upi_pin`, `notes`
+- **note:** `label`*, `notes`*
 
 **Storage:** private bucket `avatars` — path `{user_id}/...`; RLS: owner read/write.  
 **RLS:** all tables `auth.uid() = user_id` / `id`.  
 **Triggers:** `updated_at` auto-update.
 
-You will: create project → run migration SQL → create anon key → put URL/anon in `.env`.
+You will: create project → run migration SQL → create publishable key → put URL/publishable key in `.env`.
 
 ## App features — Phase 1 (build now)
 
@@ -234,17 +249,37 @@ flowchart TD
   reveal -->|if reauth required for reveal| gate
 ```
 
+
+
 - **Signup / first login:** email + master password (Supabase Auth) → derive KEK → unwrap DEK → vault session open
 - **Later app opens** (Supabase session may still be valid): do **not** ask for email again; show **Unlock** screen — **fingerprint or master password** only
 - **Opening a vault item / viewing masked secrets** (password, PIN, CVV, account numbers, etc.): values stay masked until user passes **fingerprint or master password** (biometric preferred if enrolled; password always available fallback)
-- After successful biometric unlock once per “soft session”, optional short grace window for consecutive reveals (UX convenience); leaving app or timeout returns to locked gate
+- **Auto-lock** (Settings, device-local prefs): lock after foreground inactivity — 30 seconds, 1 minute, 5 minutes, 15 minutes, 30 minutes, or **While using app** (no foreground timeout). App going to background still locks. **Lock vault now** on Settings wipes the in-memory DEK and shows Unlock.
+- **Re-auth for secrets** (Settings, device-local prefs): Every time, 30 seconds, 1 minute, 2 minutes, 5 minutes — how long reveal/copy may skip fingerprint or master password after a successful gate.
 - Device stores biometric-protected unlock material in `flutter_secure_storage` after first successful master-password unlock; never store master password in plaintext
 
-### Profile
+### Profile (separate from Settings)
 
-- Name, email (from auth), avatar: **60 preset PNGs** in `assets/avatars/` (ids `1`…`60` or filename-based) **or** gallery upload → Storage
-- Theme preference synced to `profiles.theme_preference` (`system` | `light` | `dark`)
+Pushed from **Home only** (`/profile`). Back pops to Home. Not linked from Settings.
+
+- **Avatar:** show selected preset or custom photo; **Choose avatar** (60 PNGs in `assets/avatars/`, ids `1`…`60`) or **Upload photo** (gallery → Storage `avatars` bucket)
+- **Name:** editable; save to `profiles.name`
+- **Email:** from auth; **non-editable**
 - Loading states use brand Lottie `assets/animations/loading.json`
+- Do **not** put theme, auto-lock, change master password, lock, or logout here
+
+### Settings
+
+Bottom-nav tab. No profile name/avatar/email. Options:
+
+- **Appearance:** System, Light, Dark — apply `ThemeMode` immediately; persist to `profiles.theme_preference`
+- **Auto-lock vault:** 30 seconds, 1 minute, 5 minutes, 15 minutes, 30 minutes, While using app
+- **Re-auth for secrets:** Every time, 30 seconds, 1 minute, 2 minutes, 5 minutes
+- **Change master password:** implemented (unwrap/re-wrap DEK + Auth password update)
+- **Lock vault now:** instant lock → Unlock screen (not login)
+- **Log out:** confirm → clear session → login
+
+Auto-lock and re-auth timers are local (`SharedPreferences`). Theme syncs to Supabase profile.
 
 ### Vault
 
@@ -256,7 +291,8 @@ flowchart TD
 ### Password generator
 
 - Length, lower/upper/digits/symbols toggles
-- Copy to clipboard; “Save as vault item” → password form prefilled
+- Copy to clipboard; “Save as vault item” → password form prefilled (`generator -> vault item form`)
+- After a successful save, **replace** the stack with `home -> vault item details` (not leave generator under the form)
 
 ### Password health
 
@@ -273,7 +309,50 @@ flowchart TD
 
 ### Navigation (`go_router`)
 
-Typical routes: splash/bootstrap → **login (email + password)** → **unlock (bio | password)** → shell (home, generator, health, settings) → item detail / form → profile. Auth-session present but vault locked → unlock route, not login.
+Auth-session present but vault locked → **unlock** route, not login.
+
+After login/unlock, **Home is the root** of the app (`/home` in the bottom-nav shell: Home, Generator, Health, Settings). Overlay routes sit above the shell (bottom bar hidden): `/profile`, `/vault/:id`, `/vault/new`, `/vault/edit/:id`, `/settings/change-master-password`. Prefer `push`/`pop` over `go` for in-app flows.
+
+**Android / system back:**
+
+- On **Home** (no overlay): first back → “Press back again to exit”; second back within ~2s exits the app
+- On **Generator / Health / Settings** with nothing pushed: back returns to **Home** (does not exit)
+- On any **pushed** page: back **pops** to the previous page in the stack
+
+**Page stacks** follow navigations from widgets on that page:
+
+```mermaid
+flowchart LR
+  unlock[Unlock]
+  home[Home]
+  profile[Profile]
+  details[Vault_details]
+  edit[Vault_edit]
+  create[Vault_create]
+  gen[Generator]
+  health[Health]
+  settings[Settings]
+  cmp[Change_master_password]
+  unlock --> home
+  home --> profile
+  home --> details
+  details --> edit
+  home --> create
+  home --> gen
+  home --> health
+  home --> settings
+  gen --> create
+  settings --> cmp
+```
+
+- `home -> profile`
+- `home -> vault item details -> vault item edit`
+- `home -> vault item create`
+- `generator -> vault item form`; after save, stack becomes `home -> vault item details`
+- **Health:** no further routes
+- `settings -> change master password`
+
+Lock vault / logout use `go` to `/unlock` or `/login` and clear the vault stack. Edit save pops back to details (`home -> details`).
 
 ## Folder structure (target)
 
@@ -321,6 +400,7 @@ supabase/migrations/
 ```
 
 Crypto lives behind a domain port (e.g. `VaultCrypto` / `KeyWrapService`) with the implementation in `data` or `core/crypto` injected via Riverpod — presentation never touches raw keys beyond session state owned by an unlock use-case/notifier.
+
 ## Phase 2 — planned later (schema/app hooks only where cheap)
 
 
@@ -345,7 +425,7 @@ Phase 1 code stays modular so these plug in without rewriting crypto core.
 2. You create Supabase project and run the SQL
 3. You enable Email auth; disable unused providers for now
 4. You create `avatars` bucket per migration notes
-5. You send **Project URL** + **anon public key** for `.env`
+5. You send **Project URL** + **publishable public key** for `.env`
 6. Drop **60 preset avatar PNGs** into `assets/avatars/` when ready (placeholders until then). Loading Lottie is created to match the Rose vault palette during bootstrap.
 
 ## Implementation order
@@ -353,16 +433,16 @@ Phase 1 code stays modular so these plug in without rewriting crypto core.
 1. Flutter project + Clean Architecture folders + deps + explicit theme tokens + scale/router + brand Lottie loader
 2. Supabase migration SQL + env wiring
 3. Domain ports + crypto/auth/unlock use cases (login vs unlock gates) + data impls + presentation
-4. Profile + theme preference + 60 PNG presets / custom upload
+4. Profile (name, avatars) as a Home-pushed page; Settings (theme, auto-lock, re-auth, change master password, lock now, logout)
 5. Vault CRUD + masked secrets + fingerprint/password reveal gate
-6. Generator + health
-7. Screenshot guard + Android polish
-8. README: run instructions, schema apply steps, asset drop-in notes, security notes
+6. Generator + health; generator save replaces stack to `home -> details`
+7. Home-rooted back stacks (double-back exit on Home)
+8. Screenshot guard + Android polish
+9. README: run instructions, schema apply steps, asset drop-in notes, security notes
 
 ## Out of scope for Phase 1
 
 - iOS shipping, web/desktop
 - Sharing, emergency access, OCR, documents, travel/duress, hide-my-email
 - Offline-first sync (interfaces only if useful)
-- Password change UI can ship as thin settings action once wrap/rewrap works
 
