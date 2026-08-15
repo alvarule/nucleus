@@ -1,3 +1,4 @@
+/// Supabase Auth adapter. Maps SDK errors to [AuthFailure] with friendlier copy.
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:nucleus/core/errors/app_exception.dart';
 import 'package:nucleus/features/auth/domain/repositories/auth_repository.dart';
@@ -82,6 +83,7 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
+  /// Maps common Supabase auth errors to short UI strings; otherwise raw text.
   String _friendly(Object e) {
     final text = e.toString();
     final lower = text.toLowerCase();

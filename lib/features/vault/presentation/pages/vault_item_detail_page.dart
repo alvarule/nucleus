@@ -1,3 +1,4 @@
+/// Decrypts one item by id and shows fields; secrets stay masked until gated.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,6 +31,7 @@ class _VaultItemDetailPageState extends ConsumerState<VaultItemDetailPage> {
   final _revealed = <String>{};
   String? _error;
 
+  /// Keys shown behind [MaskedSecretField] rather than plaintext.
   static const _sensitiveKeys = {
     'password',
     'account_no',
@@ -120,6 +122,7 @@ class _VaultItemDetailPageState extends ConsumerState<VaultItemDetailPage> {
     return PopScope(
       canPop: navigatorCanPop,
       onPopInvokedWithResult: (didPop, _) {
+        // If this route is the only one (deep link / stack wipe), go Home.
         if (didPop) return;
         context.go('/home');
       },

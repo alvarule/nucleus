@@ -1,3 +1,4 @@
+/// Create/edit a vault item. Field keys are the JSON stored inside the encrypted payload.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -62,6 +63,7 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
     super.dispose();
   }
 
+  /// Schema per [VaultItemType]; extra dropdowns (account/card type) are not in this list.
   List<String> _fieldsFor(VaultItemType type) => switch (type) {
         VaultItemType.password => ['label', 'url', 'username', 'password', 'notes'],
         VaultItemType.bankAccount => [
@@ -166,6 +168,7 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
                         '${titleCaseLabel(fieldKey)}${_required.contains(fieldKey) ? ' *' : ''}',
                     obscureText: _sensitive.contains(fieldKey),
                     enableObscureToggle: _sensitive.contains(fieldKey),
+                    // New items have no stored secret yet; only edits re-auth to show.
                     onBeforeReveal: isEdit && _sensitive.contains(fieldKey)
                         ? () => ensureSensitiveAccess(
                               context,
@@ -250,6 +253,7 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
     );
   }
 
+  /// Persists encrypted fields then lands on detail with Home still under it.
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final session = ref.read(vaultSessionProvider);

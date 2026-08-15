@@ -1,3 +1,4 @@
+/// In-memory vault session: DEK, profile, lock status, reveal grace, auto-lock.
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -12,6 +13,7 @@ import 'package:nucleus/features/settings/presentation/providers/security_prefer
 
 enum VaultSessionStatus { locked, unlocking, unlocked }
 
+/// Session snapshot. [dek] is only present while [status] is unlocked.
 class VaultSessionState extends Equatable {
   const VaultSessionState({
     this.status = VaultSessionStatus.locked,
@@ -29,6 +31,7 @@ class VaultSessionState extends Equatable {
 
   bool get isUnlocked => status == VaultSessionStatus.unlocked && dek != null;
 
+  /// True when a reveal/copy can skip a new biometric/password prompt.
   bool get canRevealSecrets {
     if (!isUnlocked) return false;
     if (revealUntil == null) return false;
@@ -58,6 +61,7 @@ class VaultSessionState extends Equatable {
   List<Object?> get props => [status, profile, revealUntil, error, dek?.length];
 }
 
+/// Owns unlock, lock, logout, and the two security timers (auto-lock + grace).
 class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
   VaultSessionNotifier(this._ref) : super(const VaultSessionState()) {
     _ref.listen(securityPreferenceProvider, (prev, next) {
@@ -86,11 +90,14 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
     return DateTime.now().add(grace);
   }
 
+  /// Records foreground interaction used by the inactivity auto-lock timer.
   void touchActivity() {
     if (!state.isUnlocked) return;
     _lastActivityAt = DateTime.now();
   }
 
+  /// Polls every 2s rather than a one-shot timer so preference changes apply
+  /// without restarting the whole session.
   void _scheduleInactivityWatch() {
     _inactivityTimer?.cancel();
     _inactivityTimer = null;
@@ -127,11 +134,13 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
     _scheduleInactivityWatch();
   }
 
+  /// Loads wrapped-DEK metadata before the unlock screen (does not unwrap).
   Future<void> loadProfile(String userId) async {
     final profile = await _ref.read(profileRepositoryProvider).getProfile(userId);
     state = state.copyWith(profile: profile);
   }
 
+  /// Unwraps the DEK with the master password and caches it for biometrics.
   Future<void> unlockWithPassword(String masterPassword) async {
     final auth = _ref.read(authRepositoryProvider);
     final userId = auth.currentUserId;
@@ -198,6 +207,8 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
     }
   }
 
+  /// OS biometric prompt, then read the device-stored DEK. Master password is
+  /// not involved after a successful first unwrap on this device.
   Future<bool> unlockWithBiometrics() async {
     final auth = _ref.read(authRepositoryProvider);
     final userId = auth.currentUserId;
@@ -212,6 +223,8 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
     return true;
   }
 
+  /// Biometric gate for reveal/copy. Returns false so the UI can fall back to
+  /// master password when biometrics are unavailable or cancelled.
   Future<bool> gateForReveal({
     String reason = 'Reveal sensitive data',
   }) async {
@@ -238,6 +251,7 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
     state = state.copyWith(revealUntil: until);
   }
 
+  /// Drops the in-memory DEK but keeps [profile] so unlock UI can still greet.
   void lock() {
     _inactivityTimer?.cancel();
     _inactivityTimer = null;
@@ -248,6 +262,7 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
     );
   }
 
+  /// Clears the device DEK, signs out of Auth, and resets session state.
   Future<void> logout() async {
     final userId = _ref.read(authRepositoryProvider).currentUserId;
     if (userId != null) {
@@ -264,6 +279,7 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
     state = state.copyWith(profile: profile);
   }
 
+  /// Used after signup so the user skips a second unlock.
   void openUnlockedSession({
     required Uint8List dek,
     required UserProfile profile,

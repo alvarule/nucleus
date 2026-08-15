@@ -1,3 +1,4 @@
+/// Edit name and avatar. Theme/lock/logout live on Settings, not here.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -88,6 +89,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             controller: TextEditingController(text: profile.email),
             label: 'Email',
             prefixIcon: 'mail',
+            // Auth identity; changing email is not implemented.
             enabled: false,
           ),
           SizedBox(height: scale.lg),
@@ -117,6 +119,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     }
   }
 
+  /// Presets are bundled as `assets/avatars/1.png` … `60.png`.
   Future<void> _pickPreset(UserProfile profile) async {
     final colors = context.colors;
     final selected = await showModalBottomSheet<String>(
@@ -220,6 +223,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     ref.read(vaultSessionProvider.notifier).setProfile(updated);
   }
 
+  /// Gallery pick is resized before upload to keep avatar objects small.
   Future<void> _uploadCustom(UserProfile profile) async {
     final picker = ImagePicker();
     final file = await picker.pickImage(

@@ -1,3 +1,4 @@
+/// Profile entity plus avatar/theme enums. Wrapped DEK fields live on this row.
 import 'package:equatable/equatable.dart';
 
 enum AvatarType { preset, custom }

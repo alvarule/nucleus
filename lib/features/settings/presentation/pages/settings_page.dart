@@ -1,3 +1,4 @@
+/// Appearance, security timers, master-password change, lock, logout.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -124,6 +125,7 @@ class SettingsPage extends ConsumerWidget {
     UserProfile? profile,
     ThemePreference value,
   ) async {
+    // Apply immediately, then persist so other devices pick it up from `profiles`.
     ref.read(themePreferenceProvider.notifier).setLocal(value);
     if (profile != null) {
       final updated = await ref

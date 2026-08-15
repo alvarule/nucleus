@@ -1,3 +1,4 @@
+/// Renders preset PNG, custom signed URL, or a fallback glyph.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nucleus/core/di/providers.dart';

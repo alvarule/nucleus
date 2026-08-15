@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Hand-authored Rose vault palette — never use ColorScheme.fromSeed.
+/// Semantic tokens for the Rose vault palette, exposed as a [ThemeExtension].
+/// Hand-authored — never use ColorScheme.fromSeed.
 @immutable
 class AppColors extends ThemeExtension<AppColors> {
   const AppColors({

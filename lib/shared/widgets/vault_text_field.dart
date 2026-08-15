@@ -1,3 +1,5 @@
+/// Styled text field used across auth, vault, and settings.
+/// Optional [onBeforeReveal] gates unmasking when [enableObscureToggle] is on.
 import 'package:flutter/material.dart';
 import 'package:nucleus/core/responsive/scale.dart';
 import 'package:nucleus/core/theme/app_colors.dart';
@@ -75,6 +77,7 @@ class _VaultTextFieldState extends State<VaultTextField> {
       setState(() => _obscure = true);
       return;
     }
+    // Hide is always free; show may require biometric/password confirmation.
     final confirm = widget.onBeforeReveal;
     if (confirm != null) {
       _toggling = true;
@@ -165,6 +168,7 @@ class _VaultTextFieldState extends State<VaultTextField> {
   }
 }
 
+/// Full-width primary CTA with an inline loading spinner.
 class PrimaryButton extends StatelessWidget {
   const PrimaryButton({
     super.key,

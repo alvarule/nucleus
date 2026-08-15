@@ -1,9 +1,12 @@
+/// Login/signup form state and the signup crypto bootstrap (generate DEK, wrap,
+/// persist profile, open an unlocked session).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nucleus/core/crypto/vault_crypto_service.dart';
 import 'package:nucleus/core/di/providers.dart';
 import 'package:nucleus/core/errors/app_exception.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
 
+/// Loading and error flags for login/signup forms.
 class AuthFormState {
   const AuthFormState({
     this.loading = false,
@@ -26,6 +29,8 @@ class AuthController extends StateNotifier<AuthFormState> {
 
   final Ref _ref;
 
+  /// Creates Auth user, wraps a new DEK with the master password, writes
+  /// `profiles`, stores DEK for biometrics, and unlocks the session.
   Future<bool> signUp({
     required String name,
     required String email,
@@ -49,6 +54,7 @@ class AuthController extends StateNotifier<AuthFormState> {
       }
 
       final dek = crypto.generateDek();
+      // Lower memory than [KdfParams] defaults so first wrap is usable on phones.
       const params = KdfParams(memory: 19456, iterations: 2, parallelism: 2);
       final wrapped = await crypto.wrapDek(
         dek: dek,
@@ -82,6 +88,7 @@ class AuthController extends StateNotifier<AuthFormState> {
     }
   }
 
+  /// Email+password Auth, then unwrap DEK via [VaultSessionNotifier].
   Future<bool> signIn({
     required String email,
     required String password,

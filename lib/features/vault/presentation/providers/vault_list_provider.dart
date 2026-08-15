@@ -1,3 +1,4 @@
+/// Decrypted vault list in memory: search, type filter, refresh, delete.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nucleus/core/di/providers.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
@@ -18,6 +19,7 @@ class VaultListState {
   final VaultItemType? filter;
   final String? error;
 
+  /// Client-side filter; search matches label and any field string.
   List<VaultItem> get visible {
     return items.where((item) {
       if (filter != null && item.type != filter) return false;
@@ -52,6 +54,7 @@ class VaultListNotifier extends StateNotifier<VaultListState> {
 
   final Ref _ref;
 
+  /// No-ops when the vault is locked so we never decrypt without a DEK.
   Future<void> refresh() async {
     final session = _ref.read(vaultSessionProvider);
     final userId = _ref.read(authRepositoryProvider).currentUserId;

@@ -1,3 +1,5 @@
+/// Riverpod wiring for shared services and repositories.
+/// Feature notifiers live next to their pages, not here.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:nucleus/core/crypto/vault_crypto_service.dart';

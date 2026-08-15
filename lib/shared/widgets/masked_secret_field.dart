@@ -1,3 +1,4 @@
+/// Masked secret row with reveal/copy callbacks (parent owns the gate).
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nucleus/core/responsive/scale.dart';
@@ -51,6 +52,7 @@ class MaskedSecretField extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
+                  // Mask length is clamped so short secrets still look hidden.
                   display,
                   style: TextStyle(
                     color: revealed ? colors.textPrimary : colors.textTertiary,

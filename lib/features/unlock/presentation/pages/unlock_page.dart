@@ -1,3 +1,4 @@
+/// Post-auth vault gate: biometrics if a DEK is cached, otherwise master password.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -27,6 +28,7 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
     Future.microtask(_prepareBiometrics);
   }
 
+  /// Auto-prompts biometrics once per visit when a stored DEK exists.
   Future<void> _prepareBiometrics() async {
     final can = await ref.read(biometricUnlockStoreProvider).canCheckBiometrics();
     final userId = ref.read(authRepositoryProvider).currentUserId;

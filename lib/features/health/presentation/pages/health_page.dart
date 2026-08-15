@@ -1,3 +1,4 @@
+/// Strength/reuse summary over decrypted password items already in [vaultListProvider].
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nucleus/core/responsive/scale.dart';

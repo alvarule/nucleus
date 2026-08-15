@@ -1,3 +1,4 @@
+/// Local password generator and a heuristic health checker used by Health tab.
 import 'dart:math';
 
 class PasswordGenerator {
@@ -5,6 +6,7 @@ class PasswordGenerator {
 
   final Random _random;
 
+  /// Guarantees at least one char from each selected set, then fills and shuffles.
   String generate({
     int length = 16,
     bool lower = true,
@@ -49,7 +51,9 @@ class PasswordHealthResult {
   final bool reused;
 }
 
+/// Heuristic strength/reuse scoring for the Health tab (not a breach checker).
 class PasswordHealthChecker {
+  /// Small denylist; not a comprehensive breach corpus.
   static const _common = {
     'password',
     '123456',
@@ -66,6 +70,8 @@ class PasswordHealthChecker {
     'login',
   };
 
+  /// Scores length + charset; common passwords zero the score.
+  /// [otherPasswords] is expected to be the vault's unique password set.
   PasswordHealthResult evaluate(String password, {Set<String> otherPasswords = const {}}) {
     final issues = <String>[];
     var score = 0;
@@ -108,6 +114,8 @@ class PasswordHealthChecker {
       issues.add('Common password');
     }
 
+    // With a Set, count-of-equals cannot exceed 1. Reuse is then inferred if
+    // this password is in the set and the vault has more than one unique value.
     final reused = otherPasswords.where((p) => p == password).length > 1 ||
         (otherPasswords.contains(password) && otherPasswords.length > 1);
     if (reused) {

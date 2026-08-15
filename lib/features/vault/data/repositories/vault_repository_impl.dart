@@ -1,3 +1,4 @@
+/// Encrypts/decrypts vault payloads client-side, then talks to `vault_items`.
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -50,6 +51,7 @@ class VaultRepositoryImpl implements VaultRepository {
     required Uint8List dek,
   }) async {
     final id = _uuid.v4();
+    // AAD ties ciphertext to this row so it cannot be copied onto another item.
     final aad = utf8.encode('$id:${type.dbValue}');
     final blob = await _crypto.encryptPayload(
       dek: dek,
@@ -97,6 +99,7 @@ class VaultRepositoryImpl implements VaultRepository {
     await _client.from('vault_items').delete().eq('id', id);
   }
 
+  /// Decrypts one `vault_items` row. Failures become [VaultException], not raw crypto errors.
   Future<VaultItem> _decrypt(Map<String, dynamic> row, Uint8List dek) async {
     try {
       final id = row['id'] as String;

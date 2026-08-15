@@ -1,3 +1,4 @@
+/// Brand Lottie loader (not a default CircularProgressIndicator).
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:nucleus/core/responsive/scale.dart';
@@ -22,6 +23,7 @@ class VaultLoader extends StatelessWidget {
   }
 }
 
+/// Full-screen loading used by splash and health while data is not ready.
 class VaultLoadingScaffold extends StatelessWidget {
   const VaultLoadingScaffold({super.key, this.message});
 

@@ -1,3 +1,5 @@
+/// App entry: load `.env`, initialize Supabase, enable screenshot protection,
+/// then boot [NucleusApp] inside a Riverpod [ProviderScope].
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,8 +10,9 @@ import 'package:nucleus/app.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
-  
+
   final url = dotenv.env['SUPABASE_URL'] ?? '';
+  // Prefer the current publishable key; fall back to the older anon-key name.
   final publishableKey = dotenv.env['SUPABASE_PUBLISHABLE_KEY'] ??
       dotenv.env['SUPABASE_ANON_KEY'] ??
       '';
@@ -20,7 +23,8 @@ Future<void> main() async {
       publishableKey != 'your_anon_key_here') {
     await Supabase.initialize(url: url, publishableKey: publishableKey);
   } else {
-    // Allow UI boot without credentials; auth calls will fail until configured.
+    // Placeholder so widgets can mount in tests/dev without real credentials.
+    // Auth and vault calls will fail until `.env` is configured.
     await Supabase.initialize(
       url: 'https://placeholder.supabase.co',
       publishableKey:

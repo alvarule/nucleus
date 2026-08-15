@@ -1,3 +1,5 @@
+/// Layout helpers scaled from a 390pt-wide design. Clamp avoids tiny/huge phones
+/// blowing spacing out of range.
 import 'package:flutter/widgets.dart';
 
 /// Scales sizes from a 390pt design baseline.

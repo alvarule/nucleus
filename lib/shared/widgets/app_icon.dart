@@ -1,3 +1,4 @@
+/// Tinted SVG from `assets/icons/{name}.svg`.
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:nucleus/core/responsive/scale.dart';

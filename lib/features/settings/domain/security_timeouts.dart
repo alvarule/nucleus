@@ -1,4 +1,4 @@
-/// How long the vault stays unlocked while the app is in the foreground.
+/// Auto-lock and reveal-grace options. A `null` duration means no timeout.
 enum VaultAutoLockOption {
   thirtySeconds,
   oneMinute,

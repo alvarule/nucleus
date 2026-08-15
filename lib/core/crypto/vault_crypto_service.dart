@@ -1,9 +1,12 @@
+/// Client-side crypto for Nucleus: Argon2id KEK, AES-256-GCM DEK wrap, and
+/// vault payload encrypt/decrypt. The server never sees plaintext secrets.
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 
+/// Argon2id parameters stored alongside the wrapped DEK so unwrap can match signup.
 class KdfParams {
   const KdfParams({
     this.memory = 65536,
@@ -33,6 +36,7 @@ class KdfParams {
       );
 }
 
+/// Encrypted DEK plus the salt/KDF metadata needed to derive the KEK again.
 class WrappedDek {
   const WrappedDek({
     required this.encryptedDekBase64,
@@ -45,6 +49,7 @@ class WrappedDek {
   final KdfParams kdfParams;
 }
 
+/// AES-GCM ciphertext+MAC (packed) and nonce for a vault item payload.
 class EncryptedBlob {
   const EncryptedBlob({
     required this.ciphertextBase64,
@@ -69,6 +74,7 @@ class VaultCryptoService {
 
   Uint8List generateSalt() => _randomBytes(_saltLength);
 
+  /// Derives the key-encryption-key from the master password; never persisted.
   Future<SecretKey> deriveKek({
     required String masterPassword,
     required Uint8List salt,
@@ -86,6 +92,8 @@ class VaultCryptoService {
     );
   }
 
+  /// Encrypts the DEK with a KEK from [masterPassword]. Packed layout:
+  /// `nonce || ciphertext || mac`.
   Future<WrappedDek> wrapDek({
     required Uint8List dek,
     required String masterPassword,
@@ -110,6 +118,7 @@ class VaultCryptoService {
     );
   }
 
+  /// Inverse of [wrapDek]. Wrong password or corrupt payload fails AES-GCM MAC.
   Future<Uint8List> unwrapDek({
     required String masterPassword,
     required WrappedDek wrapped,
@@ -134,6 +143,7 @@ class VaultCryptoService {
     return Uint8List.fromList(clear);
   }
 
+  /// Encrypts vault field JSON. Optional AAD binds ciphertext to item id+type.
   Future<EncryptedBlob> encryptPayload({
     required Uint8List dek,
     required String plaintextJson,
@@ -152,6 +162,7 @@ class VaultCryptoService {
     );
   }
 
+  /// Decrypts a vault payload. Ciphertext packing is `ciphertext || mac`.
   Future<String> decryptPayload({
     required Uint8List dek,
     required EncryptedBlob blob,
@@ -173,6 +184,7 @@ class VaultCryptoService {
     return utf8.decode(clear);
   }
 
+  /// Wraps the same DEK under a new master password (items stay encrypted as-is).
   Future<WrappedDek> rewrapDek({
     required Uint8List dek,
     required String newMasterPassword,

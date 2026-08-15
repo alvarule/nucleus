@@ -1,3 +1,4 @@
+/// Home tab: searchable vault list, type chips, swipe-delete, copy-password.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,6 +38,7 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
     super.dispose();
   }
 
+  /// Copy is a sensitive action — same gate as reveal.
   Future<void> _copyPassword(VaultItem item) async {
     final password = '${item.fields['password'] ?? ''}';
     if (password.isEmpty) {

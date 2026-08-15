@@ -1,3 +1,4 @@
+/// Mirrors `profiles.theme_preference` into [ThemeMode] for [NucleusApp].
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nucleus/features/profile/domain/entities/user_profile.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
@@ -15,6 +16,7 @@ class ThemePreferenceNotifier extends StateNotifier<ThemePreference> {
 
   final Ref _ref;
 
+  /// Immediate UI update; persistence happens in Settings via profile update.
   void setLocal(ThemePreference preference) => state = preference;
 }
 

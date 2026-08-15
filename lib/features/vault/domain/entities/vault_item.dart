@@ -1,7 +1,9 @@
+/// Vault item types, decrypted presentation model, and encrypted row shape.
 import 'package:equatable/equatable.dart';
 
 enum VaultItemType { password, bankAccount, atmCard, note }
 
+/// Maps enum ↔ `vault_items.item_type` and UI labels/icons.
 extension VaultItemTypeX on VaultItemType {
   String get dbValue => switch (this) {
         VaultItemType.password => 'password',
@@ -93,6 +95,8 @@ class VaultItem extends Equatable {
   List<Object?> get props => [id, userId, type, fields, createdAt, updatedAt];
 }
 
+/// Ciphertext row as stored in `vault_items` (unused by the repository today;
+/// decrypt path maps rows directly to [VaultItem]).
 class VaultItemRecord {
   const VaultItemRecord({
     required this.id,

@@ -1,3 +1,4 @@
+/// Change-master-password flow: verify, re-wrap DEK, persist, then Auth update.
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -174,6 +175,7 @@ class ChangeMasterPasswordController
     return true;
   }
 
+  /// Constant-time-ish compare so we do not early-return on the first mismatch.
   bool _bytesEqual(Uint8List a, Uint8List b) {
     if (a.length != b.length) return false;
     var diff = 0;

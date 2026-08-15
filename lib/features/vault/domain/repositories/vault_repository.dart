@@ -1,3 +1,4 @@
+/// Vault CRUD contract. All reads/writes require the in-memory DEK.
 import 'dart:typed_data';
 
 import 'package:nucleus/features/vault/domain/entities/vault_item.dart';

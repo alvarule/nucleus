@@ -1,3 +1,4 @@
+/// Reveal/copy gate: skip if grace is active, else biometrics, else password sheet.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nucleus/core/theme/app_colors.dart';
@@ -30,6 +31,7 @@ Future<bool> ensureSensitiveAccess(
   return confirmed == true;
 }
 
+/// Bottom sheet that verifies a master password without changing lock status.
 Future<bool?> showMasterPasswordSheet(
   BuildContext context, {
   String title = 'Confirm master password',

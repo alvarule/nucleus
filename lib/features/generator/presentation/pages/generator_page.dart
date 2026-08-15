@@ -1,3 +1,4 @@
+/// Generate a password and optionally prefill a new vault password item.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -149,6 +150,7 @@ class _GeneratorPageState extends ConsumerState<GeneratorPage> {
           SizedBox(height: scale.sm),
           TextButton(
             onPressed: () {
+              // `extra` prefills the form; router must not refresh or it is dropped.
               context.push(
                 '/vault/new?type=password',
                 extra: <String, dynamic>{'password': _password, 'label': ''},

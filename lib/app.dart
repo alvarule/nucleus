@@ -1,3 +1,4 @@
+/// Root MaterialApp: theme, routing, background lock, and auto-lock activity.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nucleus/core/lifecycle/vault_lifecycle_observer.dart';
@@ -15,6 +16,7 @@ class NucleusApp extends ConsumerStatefulWidget {
 }
 
 class _NucleusAppState extends ConsumerState<NucleusApp> {
+  /// Locks the in-memory DEK when the process is backgrounded.
   late final VaultLifecycleObserver _observer;
 
   @override
@@ -49,6 +51,7 @@ class _NucleusAppState extends ConsumerState<NucleusApp> {
       themeMode: mode,
       routerConfig: router,
       builder: (context, child) {
+        // Any pointer down counts as foreground activity for auto-lock timers.
         return Listener(
           behavior: HitTestBehavior.translucent,
           onPointerDown: (_) {

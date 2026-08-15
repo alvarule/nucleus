@@ -1,5 +1,9 @@
+/// Auth and profile repository contracts (domain). Implementations live under
+/// `features/*/data`. Profile lives here because signup creates both the user
+/// and the wrapped-DEK profile row.
 import 'package:nucleus/features/profile/domain/entities/user_profile.dart';
 
+/// Supabase Auth operations used by login, signup, logout, and password change.
 abstract class AuthRepository {
   Stream<String?> authStateChanges();
 
@@ -21,6 +25,7 @@ abstract class AuthRepository {
   Future<void> updatePassword(String newPassword);
 }
 
+/// `profiles` table + avatars storage. Holds wrapped DEK metadata, not secrets.
 abstract class ProfileRepository {
   Future<UserProfile?> getProfile(String userId);
 

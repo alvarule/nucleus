@@ -1,3 +1,4 @@
+/// Background lock: clears the in-memory DEK when the app is fully paused.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nucleus/core/di/providers.dart';

@@ -1,3 +1,4 @@
+/// Persists auto-lock and reveal-grace on the device (not the `profiles` row).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nucleus/features/settings/domain/security_timeouts.dart';

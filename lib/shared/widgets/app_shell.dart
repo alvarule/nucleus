@@ -1,3 +1,7 @@
+/// Bottom nav shell for Home / Generator / Health / Settings.
+///
+/// [PopScope] is only active while this shell is the top route. Pushed pages
+/// keep normal back. Double-back on Home exits; other tabs first return Home.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';

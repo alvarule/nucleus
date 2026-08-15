@@ -1,3 +1,4 @@
+/// Supabase `profiles` + private `avatars` bucket. Custom photos use signed URLs.
 import 'dart:io';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -84,6 +85,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
   }
 
   @override
+  /// Bucket is private; UI needs a time-limited signed URL, not a public path.
   Future<String?> getAvatarPublicUrl(String path) async {
     try {
       final signed = await _client.storage

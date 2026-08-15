@@ -1,3 +1,4 @@
+/// Device-secure DEK cache plus local_auth prompts. Master password is never stored.
 import 'dart:typed_data';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -19,6 +20,7 @@ class BiometricUnlockStore {
 
   static const _dekKeyPrefix = 'vault_dek_';
 
+  /// Depth, not a bool, so nested prompts (unlock then reveal) stay accurate.
   int _authDepth = 0;
 
   /// True while a biometric / device-credential prompt is showing.
@@ -51,6 +53,7 @@ class BiometricUnlockStore {
     }
   }
 
+  /// Hex-encodes the DEK so flutter_secure_storage can persist bytes as a string.
   Future<void> saveDek(String userId, Uint8List dek) async {
     final encoded = dek.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
     await _storage.write(key: '$_dekKeyPrefix$userId', value: encoded);

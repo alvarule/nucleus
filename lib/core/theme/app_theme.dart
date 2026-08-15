@@ -1,3 +1,5 @@
+/// Light/dark ThemeData built from the hand-authored [AppColors] palette.
+/// Intentionally not [ColorScheme.fromSeed] so brand rose stays exact.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nucleus/core/theme/app_colors.dart';

@@ -1,3 +1,7 @@
+/// GoRouter graph, auth/lock redirects, and splash bootstrap.
+///
+/// Router refresh is limited to vault lock-status and Supabase auth changes so
+/// that reveal-grace updates do not drop `extra` on `/vault/edit`.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -20,6 +24,7 @@ import 'package:nucleus/shared/widgets/vault_loader.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
 
+/// Notifies GoRouter when it must re-run redirects (auth or lock status).
 class RouterRefresh extends ChangeNotifier {
   void ping() => notifyListeners();
 }
@@ -51,6 +56,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       final loggedIn = auth.currentUserId != null;
       final unlocking = loc == '/unlock' || loc == '/login' || loc == '/signup';
 
+      // Splash decides the first destination itself.
       if (loc == '/splash') return null;
 
       if (!loggedIn) {
@@ -58,6 +64,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         return '/login';
       }
 
+      // Signed in but DEK not in memory → unlock gate, not login.
       if (loggedIn && !session.isUnlocked) {
         if (loc == '/unlock' || loc == '/login' || loc == '/signup') return null;
         return '/unlock';
@@ -146,6 +153,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
+/// First frame after process start: load profile if a Supabase session exists,
+/// then send the user to unlock or login.
 class _SplashPage extends ConsumerStatefulWidget {
   const _SplashPage();
 
