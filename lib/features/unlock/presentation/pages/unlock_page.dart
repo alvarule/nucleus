@@ -30,9 +30,12 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
 
   /// Auto-prompts biometrics once per visit when a stored DEK exists.
   Future<void> _prepareBiometrics() async {
-    final can = await ref.read(biometricUnlockStoreProvider).canCheckBiometrics();
+    final can = await ref
+        .read(biometricUnlockStoreProvider)
+        .canCheckBiometrics();
     final userId = ref.read(authRepositoryProvider).currentUserId;
-    final hasDek = userId != null &&
+    final hasDek =
+        userId != null &&
         await ref.read(biometricUnlockStoreProvider).hasStoredDek(userId);
     if (!mounted) return;
     setState(() => _bioAvailable = can && hasDek);
@@ -43,8 +46,9 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
   }
 
   Future<void> _unlockWithBiometrics() async {
-    final ok =
-        await ref.read(vaultSessionProvider.notifier).unlockWithBiometrics();
+    final ok = await ref
+        .read(vaultSessionProvider.notifier)
+        .unlockWithBiometrics();
     if (ok && mounted) context.go('/home');
   }
 
@@ -54,7 +58,9 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Log Out?'),
-        content: const Text('You will need your master password to unlock again.'),
+        content: const Text(
+          'You will need your master password to unlock again.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -84,6 +90,7 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
     final scale = Scale.of(context);
     final colors = context.colors;
     final session = ref.watch(vaultSessionProvider);
+    final profile = ref.watch(vaultSessionProvider).profile;
 
     return Scaffold(
       body: SafeArea(
@@ -124,7 +131,10 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
               Text(
                 'Use fingerprint or master password',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: colors.textSecondary, fontSize: scale.fontMd),
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: scale.fontMd,
+                ),
               ),
               SizedBox(height: scale.xl),
               if (_bioAvailable)
@@ -148,7 +158,10 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
                     Expanded(child: Divider(color: colors.border)),
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: scale.sm),
-                      child: Text('or', style: TextStyle(color: colors.textTertiary)),
+                      child: Text(
+                        'or',
+                        style: TextStyle(color: colors.textTertiary),
+                      ),
                     ),
                     Expanded(child: Divider(color: colors.border)),
                   ],
@@ -176,9 +189,20 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
                 onPressed: _submitPassword,
               ),
               const Spacer(),
+              Text(
+                profile!.email,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: scale.fontMd,
+                ),
+              ),
               TextButton(
                 onPressed: _confirmSignOut,
-                child: Text('Log Out', style: TextStyle(color: colors.textSecondary)),
+                child: Text(
+                  'Log Out',
+                  style: TextStyle(color: colors.textSecondary),
+                ),
               ),
             ],
           ),
@@ -188,7 +212,9 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
   }
 
   Future<void> _submitPassword() async {
-    await ref.read(vaultSessionProvider.notifier).unlockWithPassword(_password.text);
+    await ref
+        .read(vaultSessionProvider.notifier)
+        .unlockWithPassword(_password.text);
     if (ref.read(vaultSessionProvider).isUnlocked && mounted) {
       context.go('/home');
     }
