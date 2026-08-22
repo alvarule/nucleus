@@ -90,6 +90,16 @@ class SettingsPage extends ConsumerWidget {
             subtitle: security.revealGrace.label,
             onTap: () => _pickRevealGrace(context, ref, security.revealGrace),
           ),
+          _SecurityTile(
+            icon: 'timer',
+            title: 'Password age threshold',
+            subtitle: security.passwordAgeThreshold.label,
+            onTap: () => _pickPasswordAgeThreshold(
+              context,
+              ref,
+              security.passwordAgeThreshold,
+            ),
+          ),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: AppIcon('lock', color: colors.primary),
@@ -260,6 +270,71 @@ class SettingsPage extends ConsumerWidget {
       await ref
           .read(securityPreferenceProvider.notifier)
           .setRevealGrace(selected);
+    }
+  }
+
+  Future<void> _pickPasswordAgeThreshold(
+    BuildContext context,
+    WidgetRef ref,
+    PasswordAgeThresholdOption current,
+  ) async {
+    final colors = context.colors;
+    final selected = await showModalBottomSheet<PasswordAgeThresholdOption>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                  child: Text(
+                    'Password age threshold',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: Scale.of(ctx).fontXl,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Text(
+                    'Used by the Health tab to flag passwords that have not been changed recently.',
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: Scale.of(ctx).fontMd,
+                    ),
+                  ),
+                ),
+                ...PasswordAgeThresholdOption.values.map(
+                  (option) => ListTile(
+                    title: Text(option.label),
+                    subtitle: Text(option.description),
+                    trailing: option == current
+                        ? AppIcon('check', color: colors.primary)
+                        : null,
+                    onTap: () => Navigator.pop(ctx, option),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (selected != null) {
+      await ref
+          .read(securityPreferenceProvider.notifier)
+          .setPasswordAgeThreshold(selected);
     }
   }
 

@@ -69,22 +69,52 @@ extension RevealGraceOptionX on RevealGraceOption {
       };
 }
 
+/// Password age threshold for the Health tab "Old" filter.
+enum PasswordAgeThresholdOption {
+  ninetyDays,
+  oneEightyDays,
+}
+
+extension PasswordAgeThresholdOptionX on PasswordAgeThresholdOption {
+  String get label => switch (this) {
+        PasswordAgeThresholdOption.ninetyDays => '90 days',
+        PasswordAgeThresholdOption.oneEightyDays => '180 days',
+      };
+
+  String get description => switch (this) {
+        PasswordAgeThresholdOption.ninetyDays =>
+          'Flag passwords not changed in over 90 days',
+        PasswordAgeThresholdOption.oneEightyDays =>
+          'Flag passwords not changed in over 180 days',
+      };
+
+  int get days => switch (this) {
+        PasswordAgeThresholdOption.ninetyDays => 90,
+        PasswordAgeThresholdOption.oneEightyDays => 180,
+      };
+}
+
 class SecurityTimeouts {
   const SecurityTimeouts({
     this.autoLock = VaultAutoLockOption.fiveMinutes,
     this.revealGrace = RevealGraceOption.twoMinutes,
+    this.passwordAgeThreshold = PasswordAgeThresholdOption.ninetyDays,
   });
 
   final VaultAutoLockOption autoLock;
   final RevealGraceOption revealGrace;
+  final PasswordAgeThresholdOption passwordAgeThreshold;
 
   SecurityTimeouts copyWith({
     VaultAutoLockOption? autoLock,
     RevealGraceOption? revealGrace,
+    PasswordAgeThresholdOption? passwordAgeThreshold,
   }) {
     return SecurityTimeouts(
       autoLock: autoLock ?? this.autoLock,
       revealGrace: revealGrace ?? this.revealGrace,
+      passwordAgeThreshold:
+          passwordAgeThreshold ?? this.passwordAgeThreshold,
     );
   }
 }

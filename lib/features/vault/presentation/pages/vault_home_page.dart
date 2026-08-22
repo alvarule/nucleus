@@ -7,6 +7,8 @@ import 'package:nucleus/core/responsive/scale.dart';
 import 'package:nucleus/core/theme/app_colors.dart';
 import 'package:nucleus/features/profile/presentation/widgets/avatar_widget.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
+import 'package:nucleus/features/health/presentation/providers/password_health_provider.dart';
+import 'package:nucleus/features/health/presentation/widgets/health_badge.dart';
 import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
 import 'package:nucleus/features/vault/presentation/providers/vault_list_provider.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
@@ -110,6 +112,7 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
     final scale = Scale.of(context);
     final colors = context.colors;
     final state = ref.watch(vaultListProvider);
+    final health = ref.watch(passwordHealthProvider);
     final profile = ref.watch(vaultSessionProvider).profile;
     final firstName = _firstName(profile?.name);
 
@@ -274,6 +277,9 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
                                 ref.read(vaultListProvider.notifier).refresh(),
                             child: ListView.separated(
                               itemCount: state.visible.length,
+                              padding: EdgeInsets.only(
+                                bottom: scale.s(80),
+                              ),
                               separatorBuilder: (_, __) =>
                                   Divider(height: 1, color: colors.border),
                               itemBuilder: (context, index) {
@@ -281,6 +287,10 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
                                 final hasPassword =
                                     '${item.fields['password'] ?? ''}'.isNotEmpty;
                                 final subtitle = item.listSubtitle;
+                                final healthSnapshot = item.type ==
+                                        VaultItemType.password
+                                    ? health.forItem(item.id)
+                                    : null;
                                 return Dismissible(
                                   key: ValueKey(item.id),
                                   direction: DismissDirection.endToStart,
@@ -338,6 +348,15 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
                                     trailing: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
+                                        if (healthSnapshot != null)
+                                          Padding(
+                                            padding: EdgeInsets.only(
+                                              right: scale.xs,
+                                            ),
+                                            child: HealthBadge(
+                                              snapshot: healthSnapshot,
+                                            ),
+                                          ),
                                         if (hasPassword)
                                           IconButton(
                                             tooltip: 'Copy password',

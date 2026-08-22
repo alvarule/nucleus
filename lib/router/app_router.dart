@@ -103,11 +103,23 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/vault/edit/:id',
         builder: (context, state) {
-          final item = state.extra as VaultItem?;
-          if (item == null) {
-            return const Scaffold(body: Center(child: Text('Missing item')));
+          final extra = state.extra;
+          if (extra is VaultItem) {
+            return VaultItemFormPage(type: extra.type, existing: extra);
           }
-          return VaultItemFormPage(type: item.type, existing: item);
+          if (extra is Map<String, dynamic>) {
+            final item = extra['item'] as VaultItem?;
+            final prefill = extra['prefill'] as Map<String, dynamic>?;
+            if (item == null) {
+              return const Scaffold(body: Center(child: Text('Missing item')));
+            }
+            return VaultItemFormPage(
+              type: item.type,
+              existing: item,
+              prefill: prefill,
+            );
+          }
+          return const Scaffold(body: Center(child: Text('Missing item')));
         },
       ),
       GoRoute(
@@ -115,6 +127,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => VaultItemDetailPage(
           itemId: state.pathParameters['id']!,
         ),
+      ),
+      GoRoute(
+        path: '/generator/fix',
+        builder: (context, state) {
+          final item = state.extra as VaultItem?;
+          if (item == null) {
+            return const Scaffold(
+              body: Center(child: Text('Missing item')),
+            );
+          }
+          return GeneratorPage(fixItem: item);
+        },
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {

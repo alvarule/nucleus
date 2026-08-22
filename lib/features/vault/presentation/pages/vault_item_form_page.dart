@@ -7,6 +7,7 @@ import 'package:nucleus/core/responsive/scale.dart';
 import 'package:nucleus/core/theme/app_colors.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
 import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
+import 'package:nucleus/features/vault/domain/password_field_helpers.dart';
 import 'package:nucleus/features/vault/presentation/providers/vault_list_provider.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
 import 'package:nucleus/shared/widgets/sensitive_access.dart';
@@ -40,8 +41,8 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
   void initState() {
     super.initState();
     final initial = {
-      ...?widget.prefill,
       ...?widget.existing?.fields,
+      ...?widget.prefill,
     };
     for (final key in _fieldsFor(widget.type)) {
       _controllers[key] =
@@ -269,6 +270,17 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
     }
     if (widget.type == VaultItemType.atmCard) {
       fields['card_type'] = _cardType;
+    }
+    if (widget.type == VaultItemType.password) {
+      fields.remove(passwordChangedAtKey);
+      final merged = applyPasswordChangedAt(
+        fields: fields,
+        previousFields: widget.existing?.fields,
+        isNew: widget.existing == null,
+      );
+      fields
+        ..clear()
+        ..addAll(merged);
     }
 
     try {

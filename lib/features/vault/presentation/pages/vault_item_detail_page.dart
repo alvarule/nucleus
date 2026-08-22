@@ -8,7 +8,11 @@ import 'package:nucleus/core/di/providers.dart';
 import 'package:nucleus/core/responsive/scale.dart';
 import 'package:nucleus/core/theme/app_colors.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
+import 'package:nucleus/features/health/domain/entities/item_health_snapshot.dart';
+import 'package:nucleus/features/health/presentation/providers/password_health_provider.dart';
+import 'package:nucleus/features/health/presentation/widgets/health_badge.dart';
 import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
+import 'package:nucleus/features/vault/domain/password_field_helpers.dart';
 import 'package:nucleus/features/vault/presentation/providers/vault_list_provider.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
 import 'package:nucleus/shared/widgets/masked_secret_field.dart';
@@ -118,6 +122,9 @@ class _VaultItemDetailPageState extends ConsumerState<VaultItemDetailPage> {
 
     final item = _item!;
     final navigatorCanPop = Navigator.of(context).canPop();
+    final healthSnapshot = item.type == VaultItemType.password
+        ? ref.watch(passwordHealthProvider).forItem(item.id)
+        : null;
 
     return PopScope(
       canPop: navigatorCanPop,
@@ -199,7 +206,40 @@ class _VaultItemDetailPageState extends ConsumerState<VaultItemDetailPage> {
         body: ListView(
           padding: EdgeInsets.all(scale.lg),
           children: [
-            ...item.fields.entries.where((e) => '${e.value}'.isNotEmpty).map((e) {
+            if (healthSnapshot != null) ...[
+              Row(
+                children: [
+                  HealthBadge(snapshot: healthSnapshot),
+                  SizedBox(width: scale.sm),
+                  Expanded(
+                    child: Text(
+                      _healthSummary(healthSnapshot),
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: scale.fontSm,
+                      ),
+                    ),
+                  ),
+                  if (healthSnapshot.needsFix)
+                    TextButton(
+                      onPressed: () =>
+                          context.push('/generator/fix', extra: item),
+                      child: Text(
+                        'Fix now',
+                        style: TextStyle(
+                          color: colors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              SizedBox(height: scale.md),
+            ],
+            ...item.fields.entries
+                .where((e) =>
+                    e.key != passwordChangedAtKey && '${e.value}'.isNotEmpty)
+                .map((e) {
               final key = e.key;
               final value = '${e.value}';
               final label = titleCaseLabel(key);
@@ -269,5 +309,12 @@ class _VaultItemDetailPageState extends ConsumerState<VaultItemDetailPage> {
         ),
       ),
     );
+  }
+
+  String _healthSummary(ItemHealthSnapshot snapshot) {
+    final parts = <String>[snapshot.strength.strength.name];
+    if (snapshot.isReused) parts.add('reused');
+    if (snapshot.isOld) parts.add('old');
+    return parts.join(' · ');
   }
 }

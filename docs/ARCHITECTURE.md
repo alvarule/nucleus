@@ -22,8 +22,8 @@ lib/features/unlock/ - Unlock page, in-memory vault session, device DEK store
 lib/features/vault/ - Encrypted CRUD, list/detail/form pages
 lib/features/profile/ - Profile entity, repository impl, profile UI, avatars
 lib/features/settings/ - Theme, auto-lock, reveal grace, change master password
-lib/features/generator/ - Local password generator + health scoring helpers
-lib/features/health/ - Health tab UI over decrypted password items
+lib/features/generator/ - Local password generator
+lib/features/health/ - Password health domain (evaluate use case), shared provider, triage UI, badges
 lib/shared/widgets/ - Shell, icons, fields, loader, sensitive-access gate
 assets/animations/ - Brand Lottie used by VaultLoader
 assets/icons/ - SVG icon set referenced by AppIcon
@@ -70,7 +70,8 @@ pubspec.yaml - Dependencies and asset declarations
   * `lib/features/vault/presentation/pages/vault_home_page.dart`
   * `lib/features/vault/presentation/pages/vault_item_detail_page.dart`
   * `lib/features/vault/presentation/pages/vault_item_form_page.dart`
-* **Key decisions:** AES-GCM additional authenticated data is `id:itemType` so ciphertext cannot be moved between rows. Edit route `/vault/edit/:id` requires `extra` as a `VaultItem`; missing extra shows “Missing item”. After save, the app `go`s to `/home` then `push`es detail so back returns to the list. `VaultItemRecord` exists as a ciphertext-shaped model but the repository maps rows directly to `VaultItem`.
+  * `lib/features/vault/domain/password_field_helpers.dart`
+* **Key decisions:** AES-GCM additional authenticated data is `id:itemType` so ciphertext cannot be moved between rows. Edit route `/vault/edit/:id` requires `extra` as a `VaultItem` or a map with `item` + optional `prefill`; missing extra shows “Missing item”. After save, the app `go`s to `/home` then `push`es detail so back returns to the list. Password items store `password_changed_at` in the encrypted payload (set on create; updated only when the `password` field changes). Vault home shows a health badge per password item from the shared session health state.
 
 ### Sensitive reveal and copy
 
@@ -95,7 +96,7 @@ pubspec.yaml - Dependencies and asset declarations
 
 ### Settings
 
-* **What it does:** Light/dark/system appearance (persisted on `profiles.theme_preference`), auto-lock timeout, reveal-grace timeout, change master password, lock now, logout.
+* **What it does:** Light/dark/system appearance (persisted on `profiles.theme_preference`), auto-lock timeout, reveal-grace timeout, password age threshold (90 or 180 days for Health “Old” filter), change master password, lock now, logout.
 * **Files involved:**
   * `lib/features/settings/presentation/pages/settings_page.dart`
   * `lib/features/settings/presentation/pages/change_master_password_page.dart`
@@ -103,23 +104,29 @@ pubspec.yaml - Dependencies and asset declarations
   * `lib/features/settings/presentation/providers/security_preference_provider.dart`
   * `lib/features/settings/presentation/providers/change_master_password_controller.dart`
   * `lib/features/settings/domain/security_timeouts.dart`
-* **Key decisions:** Auto-lock and reveal-grace live in `SharedPreferences` on device, not in Supabase. Theme is applied locally first, then written to the profile. Master-password change re-wraps the **same** DEK (items are not re-encrypted). Wrap is persisted before Auth `updatePassword`; if Auth fails, the previous wrap is rolled back best-effort. Biometric DEK remains valid because the DEK bytes do not change.
+* **Key decisions:** Auto-lock, reveal-grace, and password-age threshold live in `SharedPreferences` on device, not in Supabase. Theme is applied locally first, then written to the profile. Master-password change re-wraps the **same** DEK (items are not re-encrypted). Wrap is persisted before Auth `updatePassword`; if Auth fails, the previous wrap is rolled back best-effort. Biometric DEK remains valid because the DEK bytes do not change.
 
 ### Password generator
 
-* **What it does:** Generates a password locally (length 8–64, charset toggles) with at least one character from each selected set, then shuffle. Can copy or open `/vault/new?type=password` with the value in `extra`.
+* **What it does:** Generates a password locally (length 8–64, charset toggles) with at least one character from each selected set, then shuffle. Can copy, save as a new vault item (`/vault/new?type=password` with `extra`), or continue a **fix flow** from Health/detail (`/generator/fix` with `VaultItem` extra → edit form with generated password).
 * **Files involved:**
   * `lib/features/generator/domain/password_generator.dart`
   * `lib/features/generator/presentation/pages/generator_page.dart`
-* **Key decisions:** Generation uses `Random.secure()`. Prefill depends on GoRouter `extra`, which is why router refresh is restricted.
+* **Key decisions:** Generation uses `Random.secure()`. Prefill and fix-flow context depend on GoRouter `extra`, which is why router refresh is restricted.
 
 ### Password health
 
-* **What it does:** Scores decrypted `password`-type items for length, charset, a small common-password list, and a reuse flag. Shows counts and a per-item row. Does not navigate to detail.
+* **What it does:** Computes weak / reused / old / fine status once per session from the decrypted vault list (`EvaluatePasswordHealth` in health domain). Vault home shows at-a-glance badges; the Health tab is a triage/fix view with All/Weak/Reused/Old filters (tappable stat shortcuts), reused-password grouping, weak/reused items listed above strong ones, and **Fix now** (generator → edit same item → save lands on `home → detail`). Reuse is detected by counting duplicate password values across items.
 * **Files involved:**
+  * `lib/features/health/domain/password_health_checker.dart`
+  * `lib/features/health/domain/use_cases/evaluate_password_health.dart`
+  * `lib/features/health/domain/password_health_display.dart`
+  * `lib/features/health/domain/entities/item_health_snapshot.dart`
+  * `lib/features/health/presentation/providers/password_health_provider.dart`
   * `lib/features/health/presentation/pages/health_page.dart`
-  * `lib/features/generator/domain/password_generator.dart`
-* **Key decisions:** Health reads whatever is already in `vaultListProvider` (decrypted in memory). The UI passes a **Set** of unique passwords into `evaluate`. The reuse condition is `count == password > 1` (impossible on a Set) **or** `set.contains(password) && set.length > 1`. With that call site, any password is marked reused whenever the vault has two or more distinct passwords.
+  * `lib/features/health/presentation/widgets/health_badge.dart`
+  * `lib/features/vault/domain/password_field_helpers.dart`
+* **Key decisions:** Health logic lives in `health/domain` and is consumed by both `health` and `vault` presentation via `passwordHealthProvider`. `password_changed_at` (encrypted payload field) drives the Old filter; missing values fall back to `updated_at`. List rows use `{label} — {username|url host}` with date disambiguation on collision. Fix flow uses root overlay `/generator/fix` so the Generator tab stays clean.
 
 ### Theming, shell, and platform hardening
 
@@ -189,6 +196,17 @@ UI → VaultListNotifier / form
 
 Search and type filters run in `VaultListState.visible` after decrypt.
 
+### Password health (session)
+
+```text
+vaultListProvider refresh (decrypt all items)
+  → passwordHealthProvider watches items + password-age threshold
+  → EvaluatePasswordHealth (count duplicates, strength, age)
+  → Vault home badges + Health tab triage UI read same map
+```
+
+Fix now: Health or detail → `/generator/fix` (extra: VaultItem) → `/vault/edit/:id` (extra: item + prefill password) → save → `go /home` + `push /vault/:id`.
+
 ### Reveal or copy a secret
 
 ```text
@@ -238,6 +256,6 @@ Pointer-down on the root `Listener` calls `touchActivity` to reset the inactivit
 | Lock on `paused`, skip while `isAuthenticating` | Background lock without killing the biometric sheet | Current implementation |
 | Placeholder Supabase init when `.env` is unset | UI can start in tests/dev; real Auth/vault calls fail until configured | Current implementation |
 | Hand-authored `AppColors` / `ColorScheme`, not `fromSeed` | Keep brand rose exact | Current implementation |
-| Feature folders with domain contracts + data impls; no use-case classes | Presentation talks to repositories through Riverpod `StateNotifier`s | Current implementation |
+| Feature folders with domain contracts + data impls; health uses `EvaluatePasswordHealth` use case | Presentation talks to repositories through Riverpod `StateNotifier`s; health scoring in `health/domain` shared by vault + health UI | Current implementation |
 | `StatefulShellRoute` + Home-rooted back | Double-back exits only on Home; other tabs return Home first | Current implementation |
 | `ScreenProtector.protectDataLeakageOn()` at startup | Block screenshots/screen recording where the plugin supports it | Current implementation |

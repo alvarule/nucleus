@@ -18,10 +18,10 @@ todos:
     content: Settings — appearance, auto-lock timers, re-auth for secrets, change master password, lock vault now, logout. No profile navigation.
     status: completed
   - id: vault-crud
-    content: Vault list/detail/forms; masked secrets; fingerprint/password to reveal
+    content: Vault list/detail/forms; masked secrets; fingerprint/password to reveal; password health badges on vault home list (shared session health state)
     status: completed
   - id: generator-health
-    content: Password generator + health checker (strength, reuse summary)
+    content: Password generator; shared session health scoring; Health tab as triage/fix view (filters, sort, grouping, Fix now); vault home badges; password_changed_at in vault payload
     status: completed
   - id: android-hardening
     content: FLAG_SECURE screenshot block, biometrics, Android-first polish + README
@@ -156,6 +156,12 @@ features/vault/
 
 Same pattern for `auth`, `unlock`, `profile`, `generator`, `health`, `settings`.
 
+**Password health computation (shared across Vault home + Health tab):**
+
+- Health scoring (weak / reused / old / fine) runs as part of the **same in-session decrypt pass** that feeds the Vault home list — no extra decrypt pass or Supabase round trip.
+- Logic lives in `features/health/domain/` as a reusable use case (e.g. `EvaluatePasswordHealth` / batch evaluator over decrypted password items). **Presentation** in both `vault` and `health` calls this use case; no duplicated heuristics in either feature.
+- A shared Riverpod provider/notifier (owned by `health` presentation, consumed by `vault` presentation) holds computed health state per item for the current session; both Vault home and Health tab read from the same source.
+
 ## Project bootstrap
 
 - Create Flutter app in repo root (`nucleus` / `passmngr`)
@@ -215,10 +221,12 @@ I will deliver SQL under `supabase/migrations/` covering:
 
 **Payload field contracts (JSON before encrypt):**
 
-- **password:** `label`*, `url`, `username`*, `password*`, `notes`
+- **password:** `label`*, `url`, `username`*, `password*`, `notes`, `password_changed_at` (ISO-8601 timestamp; set on create; updated **only** when `password` changes — not on label/username/notes edits)
 - **bank_account:** `label`*, `bank_name`*, `account_type*`, `account_no*`, `ifsc*`, `micr`, `notes`
 - **atm_card:** `label`*, `bank_name`*, `name_on_card*`, `card_type*` (credit/debit), `card_no*`, `cvv*`, `expiry_date*`, `atm_pin`, `upi_pin`, `notes`
 - **note:** `label`*, `notes`*
+
+`password_changed_at` lives inside the encrypted JSON payload (not a `vault_items` column). Vault create/update mappers set it to `now` on first password set and bump it only when the decrypted `password` value differs from the previous value.
 
 **Storage:** private bucket `avatars` — path `{user_id}/...`; RLS: owner read/write.  
 **RLS:** all tables `auth.uid() = user_id` / `id`.  
@@ -275,6 +283,7 @@ Bottom-nav tab. No profile name/avatar/email. Options:
 - **Appearance:** System, Light, Dark — apply `ThemeMode` immediately; persist to `profiles.theme_preference`
 - **Auto-lock vault:** 30 seconds, 1 minute, 5 minutes, 15 minutes, 30 minutes, While using app
 - **Re-auth for secrets:** Every time, 30 seconds, 1 minute, 2 minutes, 5 minutes
+- **Password age threshold:** 90 days or 180 days (device-local `SharedPreferences`, same pattern as auto-lock / re-auth grace). Default **90**. Used by Health **Old** filter (`password_changed_at` older than threshold).
 - **Change master password:** implemented (unwrap/re-wrap DEK + Auth password update)
 - **Lock vault now:** instant lock → Unlock screen (not login)
 - **Log out:** confirm → clear session → login
@@ -287,6 +296,7 @@ Auto-lock and re-auth timers are local (`SharedPreferences`). Theme syncs to Sup
 - CRUD for all four item types
 - Sensitive fields **always masked by default**; reveal requires fingerprint or master password per gate rules above
 - Timestamps shown in device timezone (`DateTime` local conversion from UTC)
+- **Health badges on home list:** each password-type row shows a small indicator (colored dot or icon) for weak, reused, old, or fine — same thresholds/logic as the Health tab (strength rules, reuse detection, `password_changed_at` age check). Computed from the shared session health state (see architecture note above), not re-evaluated separately when opening Health.
 
 ### Password generator
 
@@ -296,8 +306,15 @@ Auto-lock and re-auth timers are local (`SharedPreferences`). Theme syncs to Sup
 
 ### Password health
 
-- Strength rules (length, charset variety, common-password check against a small local denylist)
-- Per-item health badge on password-type vault items; simple summary screen (weak / reused — reuse detection among decrypted passwords in session)
+- **Role:** dedicated **triage/fix view** — not the only place strength/reuse/age is visible. Vault home provides at-a-glance badges; Health tab is for filtering, sorting, grouping, and fixing issues.
+- **Shared health state:** strength/reuse/age scoring happens once per session during the vault list decrypt pass; Health tab and Vault home both consume the same Riverpod provider (see architecture note). Pure presentation-layer wiring — no duplicate health-check logic.
+- Strength rules (length, charset variety, common-password check against a small local denylist); reuse detection among decrypted passwords in session
+- Per-item health badge on password-type vault items (vault home list and detail)
+- **List item identification:** each Health row displays `{label} — {identifier}` (e.g. `Netflix — john@mail.com`). Identifier = `username` if non-empty; else URL host from `url`. If label + identifier still collide, append a disambiguator (e.g. last-updated date from `updated_at`).
+- **Fix now:** weak and reused items show a **Fix now** action on the row (and/or in item detail). Tap opens **Generator** pre-filled, then **vault item form in edit mode** for the **same existing item** (reuse `generator -> vault item form` pattern via `/vault/edit/:id` with existing item + generated password — not `/vault/new`). On save, **update** the existing item (not create); navigation stack replaces to `home -> vault item details` (same replace behavior as generator save).
+- **Filter:** segmented control at top — **All / Weak / Reused / Old**. **Old** = `password_changed_at` older than Settings password-age threshold (default 90 days).
+- **Stat shortcuts:** replace static Checked/Weak/Reused tiles with **tappable** shortcuts that apply the corresponding filter to the list below (e.g. tap **Weak** applies Weak filter).
+- **Reused grouping:** when showing reused items (Reused filter or reused rows under All), cluster items sharing the same password under a **Reused password** group header instead of a flat list.
 
 ### Hardening / UX polish
 
@@ -341,16 +358,20 @@ flowchart LR
   home --> gen
   home --> health
   home --> settings
+  health --> gen
   gen --> create
+  gen --> edit
   settings --> cmp
 ```
+
+
 
 - `home -> profile`
 - `home -> vault item details -> vault item edit`
 - `home -> vault item create`
-- `generator -> vault item form`; after save, stack becomes `home -> vault item details`
-- **Health:** no further routes
-- `settings -> change master password`
+- `home -> generator -> vault item form` (new item); after save, stack becomes `home -> vault item details`
+- `home -> health -> generator (fix flow) -> vault item edit/form`; after save, stack becomes `home -> vault item details` (same replace behavior as generator save)
+- `home -> settings -> change master password`
 
 Lock vault / logout use `go` to `/unlock` or `/login` and clear the vault stack. Edit save pops back to details (`home -> details`).
 
@@ -435,7 +456,7 @@ Phase 1 code stays modular so these plug in without rewriting crypto core.
 3. Domain ports + crypto/auth/unlock use cases (login vs unlock gates) + data impls + presentation
 4. Profile (name, avatars) as a Home-pushed page; Settings (theme, auto-lock, re-auth, change master password, lock now, logout)
 5. Vault CRUD + masked secrets + fingerprint/password reveal gate
-6. Generator + health; generator save replaces stack to `home -> details`
+6. Generator + health (filters/sort/group, Fix now flow, `password_changed_at`); generator/fix save replaces stack to `home -> details`
 7. Home-rooted back stacks (double-back exit on Home)
 8. Screenshot guard + Android polish
 9. README: run instructions, schema apply steps, asset drop-in notes, security notes

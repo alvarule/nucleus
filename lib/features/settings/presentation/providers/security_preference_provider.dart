@@ -10,11 +10,13 @@ class SecurityPreferenceNotifier extends StateNotifier<SecurityTimeouts> {
 
   static const _autoLockKey = 'security_auto_lock';
   static const _revealGraceKey = 'security_reveal_grace';
+  static const _passwordAgeKey = 'security_password_age_threshold';
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final autoLockName = prefs.getString(_autoLockKey);
     final revealName = prefs.getString(_revealGraceKey);
+    final passwordAgeName = prefs.getString(_passwordAgeKey);
 
     state = SecurityTimeouts(
       autoLock: VaultAutoLockOption.values.firstWhere(
@@ -24,6 +26,10 @@ class SecurityPreferenceNotifier extends StateNotifier<SecurityTimeouts> {
       revealGrace: RevealGraceOption.values.firstWhere(
         (e) => e.name == revealName,
         orElse: () => RevealGraceOption.twoMinutes,
+      ),
+      passwordAgeThreshold: PasswordAgeThresholdOption.values.firstWhere(
+        (e) => e.name == passwordAgeName,
+        orElse: () => PasswordAgeThresholdOption.ninetyDays,
       ),
     );
   }
@@ -38,6 +44,12 @@ class SecurityPreferenceNotifier extends StateNotifier<SecurityTimeouts> {
     state = state.copyWith(revealGrace: value);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_revealGraceKey, value.name);
+  }
+
+  Future<void> setPasswordAgeThreshold(PasswordAgeThresholdOption value) async {
+    state = state.copyWith(passwordAgeThreshold: value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_passwordAgeKey, value.name);
   }
 }
 

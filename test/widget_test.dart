@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nucleus/core/crypto/vault_crypto_service.dart';
 import 'package:nucleus/features/generator/domain/password_generator.dart';
+import 'package:nucleus/features/health/domain/password_health_checker.dart';
+import 'package:nucleus/features/health/domain/use_cases/evaluate_password_health.dart';
+import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
 
 void main() {
   test('wrap and unwrap DEK', () async {
@@ -90,5 +93,41 @@ void main() {
   test('health checker flags short passwords', () {
     final result = PasswordHealthChecker().evaluate('abc');
     expect(result.strength, PasswordStrength.weak);
+  });
+
+  test('reuse detection only flags duplicate passwords', () {
+    final now = DateTime.now();
+    final items = [
+      VaultItem(
+        id: '1',
+        userId: 'u',
+        type: VaultItemType.password,
+        fields: {'label': 'A', 'password': 'same-secret'},
+        createdAt: now,
+        updatedAt: now,
+      ),
+      VaultItem(
+        id: '2',
+        userId: 'u',
+        type: VaultItemType.password,
+        fields: {'label': 'B', 'password': 'same-secret'},
+        createdAt: now,
+        updatedAt: now,
+      ),
+      VaultItem(
+        id: '3',
+        userId: 'u',
+        type: VaultItemType.password,
+        fields: {'label': 'C', 'password': 'unique-secret'},
+        createdAt: now,
+        updatedAt: now,
+      ),
+    ];
+
+    final health = EvaluatePasswordHealth()(items: items, oldPasswordThresholdDays: 90);
+
+    expect(health.forItem('1')!.isReused, isTrue);
+    expect(health.forItem('2')!.isReused, isTrue);
+    expect(health.forItem('3')!.isReused, isFalse);
   });
 }

@@ -1,4 +1,4 @@
-/// Generate a password and optionally prefill a new vault password item.
+/// Generate a password and optionally prefill a new or existing vault password item.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,11 +6,15 @@ import 'package:go_router/go_router.dart';
 import 'package:nucleus/core/responsive/scale.dart';
 import 'package:nucleus/core/theme/app_colors.dart';
 import 'package:nucleus/features/generator/domain/password_generator.dart';
+import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
 import 'package:nucleus/shared/widgets/vault_text_field.dart';
 
 class GeneratorPage extends ConsumerStatefulWidget {
-  const GeneratorPage({super.key});
+  const GeneratorPage({super.key, this.fixItem});
+
+  /// When set, generator is in fix flow for an existing password item.
+  final VaultItem? fixItem;
 
   @override
   ConsumerState<GeneratorPage> createState() => _GeneratorPageState();
@@ -48,8 +52,11 @@ class _GeneratorPageState extends ConsumerState<GeneratorPage> {
     final scale = Scale.of(context);
     final colors = context.colors;
 
+    final fixItem = widget.fixItem;
+    final isFixFlow = fixItem != null;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Generator')),
+      appBar: AppBar(title: Text(isFixFlow ? 'Fix password' : 'Generator')),
       body: ListView(
         padding: EdgeInsets.all(scale.lg),
         children: [
@@ -150,14 +157,23 @@ class _GeneratorPageState extends ConsumerState<GeneratorPage> {
           SizedBox(height: scale.sm),
           TextButton(
             onPressed: () {
-              // `extra` prefills the form; router must not refresh or it is dropped.
+              if (isFixFlow) {
+                context.push(
+                  '/vault/edit/${fixItem.id}',
+                  extra: {
+                    'item': fixItem,
+                    'prefill': {'password': _password},
+                  },
+                );
+                return;
+              }
               context.push(
                 '/vault/new?type=password',
                 extra: <String, dynamic>{'password': _password, 'label': ''},
               );
             },
             child: Text(
-              'Save as vault item',
+              isFixFlow ? 'Update vault item' : 'Save as vault item',
               style: TextStyle(
                 color: colors.primary,
                 fontWeight: FontWeight.w600,
