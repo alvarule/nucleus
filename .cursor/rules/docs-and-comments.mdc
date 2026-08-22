@@ -55,6 +55,9 @@ intent.
 - Roughly one comment block per function or logical section — not per 
   statement
 
+## 4. nucleus_flutter_app_fe530d03.plan.md (.cursor/plans/nucleus_flutter_app_fe530d03.plan.md)
+Only modify the existing plan when the user explicitly updates, modifies, or adds to the plan, or explicitly asks to make changes or additions to it. Do not create a new plan file unless the user explicitly requests one.
+
 ## Workflow
 Steps 1-3 happen as part of the same task that implements the feature or fixes a bug — not as a separate follow-up. Before ending a coding task, check: did 
 this change touch a feature (update ARCHITECTURE.md + CHANGELOG.md)? 
