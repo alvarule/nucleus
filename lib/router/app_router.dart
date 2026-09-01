@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nucleus/core/di/providers.dart';
+import 'package:nucleus/features/auth/presentation/pages/check_email_page.dart';
 import 'package:nucleus/features/auth/presentation/pages/login_page.dart';
 import 'package:nucleus/features/auth/presentation/pages/signup_page.dart';
+import 'package:nucleus/features/auth/presentation/pages/vault_setup_page.dart';
 import 'package:nucleus/features/generator/presentation/pages/generator_page.dart';
 import 'package:nucleus/features/health/presentation/pages/health_page.dart';
 import 'package:nucleus/features/profile/presentation/pages/profile_page.dart';
@@ -34,10 +36,20 @@ final routerRefreshProvider = Provider<RouterRefresh>((ref) {
   // Only refresh on lock/unlock transitions. Reveal-grace updates must not
   // rebuild routes — /vault/edit relies on `extra`, which GoRouter drops on refresh.
   ref.listen(vaultSessionProvider, (previous, next) {
-    if (previous?.status != next.status) refresh.ping();
+    if (previous?.status != next.status ||
+        previous?.profileResolved != next.profileResolved ||
+        previous?.profile?.id != next.profile?.id) {
+      refresh.ping();
+    }
   });
   final client = ref.watch(supabaseClientProvider);
-  final sub = client.auth.onAuthStateChange.listen((_) => refresh.ping());
+  final sub = client.auth.onAuthStateChange.listen((event) async {
+    final uid = event.session?.user.id;
+    if (uid != null && !ref.read(vaultSessionProvider).isUnlocked) {
+      await ref.read(vaultSessionProvider.notifier).loadProfile(uid);
+    }
+    refresh.ping();
+  });
   ref.onDispose(sub.cancel);
   return refresh;
 });
@@ -54,23 +66,40 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       final session = ref.read(vaultSessionProvider);
       final loc = state.matchedLocation;
       final loggedIn = auth.currentUserId != null;
-      final unlocking = loc == '/unlock' || loc == '/login' || loc == '/signup';
+      final publicAuth = loc == '/login' ||
+          loc == '/signup' ||
+          loc == '/check-email';
+      final setup = loc == '/vault-setup';
 
       // Splash decides the first destination itself.
       if (loc == '/splash') return null;
 
       if (!loggedIn) {
-        if (loc == '/login' || loc == '/signup') return null;
+        if (publicAuth) return null;
         return '/login';
       }
 
+      // Session exists but we have not loaded profile yet — stay put until resolved
+      // (auth listener calls loadProfile then pings again).
+      if (!session.profileResolved) {
+        if (loc == '/unlock' || setup || publicAuth) return null;
+        return null;
+      }
+
+      // Verified Auth user with no vault profile yet → set master password.
+      if (session.profile == null) {
+        if (setup) return null;
+        return '/vault-setup';
+      }
+
       // Signed in but DEK not in memory → unlock gate, not login.
-      if (loggedIn && !session.isUnlocked) {
+      if (!session.isUnlocked) {
         if (loc == '/unlock' || loc == '/login' || loc == '/signup') return null;
         return '/unlock';
       }
 
-      if (loggedIn && session.isUnlocked && unlocking) {
+      if (session.isUnlocked &&
+          (publicAuth || loc == '/unlock' || setup)) {
         return '/home';
       }
       return null;
@@ -82,6 +111,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
       GoRoute(path: '/signup', builder: (_, __) => const SignupPage()),
+      GoRoute(
+        path: '/check-email',
+        builder: (_, state) => CheckEmailPage(
+          email: state.uri.queryParameters['email'] ?? '',
+          name: state.uri.queryParameters['name'] ?? '',
+        ),
+      ),
+      GoRoute(path: '/vault-setup', builder: (_, __) => const VaultSetupPage()),
       GoRoute(path: '/unlock', builder: (_, __) => const UnlockPage()),
       GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
       GoRoute(
@@ -195,7 +232,9 @@ class _SplashPageState extends ConsumerState<_SplashPage> {
       final userId = auth.currentUserId;
       if (userId != null) {
         await ref.read(vaultSessionProvider.notifier).loadProfile(userId);
-        if (mounted) context.go('/unlock');
+        if (!mounted) return;
+        final profile = ref.read(vaultSessionProvider).profile;
+        context.go(profile == null ? '/vault-setup' : '/unlock');
       } else if (mounted) {
         context.go('/login');
       }

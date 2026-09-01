@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:nucleus/core/di/providers.dart';
+import 'package:nucleus/core/errors/user_facing_error.dart';
 import 'package:nucleus/core/responsive/scale.dart';
 import 'package:nucleus/core/theme/app_colors.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
@@ -72,8 +73,13 @@ class _VaultItemDetailPageState extends ConsumerState<VaultItemDetailPage> {
         _loading = false;
       });
     } catch (e) {
+      final message = await userFacingErrorMessage(
+        ref.read(connectivityServiceProvider),
+        e,
+      );
+      if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = message;
         _loading = false;
       });
     }

@@ -9,6 +9,11 @@ class AppException implements Exception {
   String toString() => message;
 }
 
+/// Thrown when the device has no usable internet connection.
+class OfflineException extends AppException {
+  const OfflineException(super.message, {super.cause});
+}
+
 /// Sign-in/sign-up/password-update failures with a user-facing [message].
 class AuthFailure extends AppException {
   const AuthFailure(super.message, {super.cause});

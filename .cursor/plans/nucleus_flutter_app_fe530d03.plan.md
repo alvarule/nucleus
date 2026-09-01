@@ -1,6 +1,6 @@
 ---
 name: Nucleus Flutter App
-overview: "Nucleus Android-first password manager: Clean Architecture + Riverpod + go_router, Rose vault hand-authored palette (#F21649), login vs fingerprint/password unlock gates, ZK encryption, brand Lottie loader, 60 PNG avatars. Settings (appearance/auto-lock/re-auth/change master password/lock/logout) separate from Profile, Home-rooted back stacks. You apply the Supabase schema."
+overview: "Nucleus Android-first password manager: Clean Architecture + Riverpod + go_router, Rose vault palette (#F21649), ZK encryption, vault folders, Home sort/group/skeleton, email verification + deep link vault setup, unlock gates. Phase 1.5 adds folders, Home UX, auth verification. Google OAuth deferred to Phase 2."
 todos:
   - id: bootstrap
     content: Scaffold Clean Architecture app, explicit Rose vault theme (no fromSeed), go_router, brand Lottie loader, env template
@@ -29,6 +29,21 @@ todos:
   - id: navigation-stacks
     content: Home-rooted stacks and Android back (double-back exit on Home; pop elsewhere; generator save replaces to home then details)
     status: completed
+  - id: folders-schema
+    content: "Migration 002: vault_folders table, folder_id on vault_items, RLS, updated_at triggers"
+    status: pending
+  - id: folders-feature
+    content: Folder CRUD (long-press header sheet + inline in item form); assign folder on create/edit; delete moves items to Uncategorized
+    status: pending
+  - id: home-grouping-sort
+    content: Home grouped by folder sections (expanded default, Uncategorized last); global search; sort sheet (name/updated/created asc+desc); folder jump scroll sheet
+    status: pending
+  - id: home-skeleton-badges
+    content: Full Home animated shimmer on initial load (no interaction until data ready); health badges only for weak/reused/old (hide fine)
+    status: pending
+  - id: email-verification
+    content: Check-email screen (resend, back to edit email); deep link handler; VaultSetup set master password + Auth password; profile/DEK only after verify; remove auto-signIn workaround. Signup is signInWithOtp only (no Edge Function).
+    status: pending
 isProject: false
 ---
 
@@ -45,6 +60,10 @@ isProject: false
 - **Re-auth gate:** Full login = email + master password; app resume / vault open / reveal secrets = master password **or** fingerprint
 - **Settings vs Profile:** Settings owns appearance, lock timers, re-auth grace, change master password, lock now, logout. Profile is a separate page from Home (avatar, name, read-only email). No profile link on Settings.
 - **Navigation:** After unlock, Home is the root. Double-back on Home exits; any other page pops the stack.
+- **Folders (Phase 1.5):** Single-level; plaintext names on server; items grouped on Home; Uncategorized last; no dedicated folders page.
+- **Home UX (Phase 1.5):** Global search; sort within folder sections; full-page shimmer on initial load; health badges hidden when fine.
+- **Auth onboarding (Phase 1.5):** Signup = name + email only (no password); `signInWithOtp` confirmation/magic link; profile/DEK only after verify + vault setup (user **sets** master password, which becomes Auth password). Same unconfirmed email just gets another OTP — no Edge Function. Confirmed users use login.
+- **Google OAuth:** Deferred to Phase 2; same `/vault-setup` path for new OAuth users.
 
 ## Color system (final — hand-authored, not fromSeed)
 
@@ -168,7 +187,8 @@ Same pattern for `auth`, `unlock`, `profile`, `generator`, `health`, `settings`.
 - Android min SDK suitable for biometrics + secure flags
 - Env via `--dart-define` or `flutter_dotenv` (`.env` gitignored; `.env.example` committed)
 - Packages (core): `flutter_riverpod`, `riverpod_annotation`, `go_router`, `supabase_flutter`, `flutter_secure_storage`, `local_auth`, `cryptography` (or PointyCastle), `flutter_svg`, `lottie`, `image_picker`, `freezed` + `json_serializable`, screenshot restriction package (`screen_protector` / equivalent for `FLAG_SECURE`)
-- Shared loading widget wraps the provided Lottie JSON; used for auth, vault fetch, profile save, etc.
+- Phase 1.5 adds: `app_links` (deep link handling; may already be transitive via `supabase_flutter`)
+- Shared loading widget wraps the provided Lottie JSON; used for auth, vault fetch, profile save, etc. Home initial load uses `VaultHomeSkeleton` shimmer instead.
 
 ## Zero-knowledge encryption (v1)
 
@@ -178,14 +198,17 @@ Your approach is sound and supports master-password change. Concrete crypto (sim
 | Piece        | Choice                                                                                     |
 | ------------ | ------------------------------------------------------------------------------------------ |
 | KDF          | Argon2id (via `cryptography`) — master password + per-user salt → KEK                      |
-| DEK          | 32-byte random key generated at signup                                                     |
+| DEK          | 32-byte random key generated at vault setup (Phase 1.5) or signup (Phase 1)                |
 | Wrap         | Encrypt DEK with KEK (AES-256-GCM); store `encrypted_dek` + `salt` + KDF params on profile |
 | Vault fields | AES-256-GCM with DEK; store ciphertext + nonce (and optional AAD = item id/type)           |
 | In-memory    | DEK held only in a Riverpod session notifier after unlock; cleared on lock/logout          |
-| Auth         | Same master password used for Supabase Auth sign-in (email + password)                     |
+| Auth         | Master password set at vault setup (Phase 1.5); same string used for Supabase Auth password via `updateUser` |
 
 
-**Signup flow:** Auth signup → generate salt + DEK → wrap DEK → insert `profiles` row → unlock session.  
+**Signup flow (Phase 1 — superseded by Phase 1.5):** Auth signup → generate salt + DEK → wrap DEK → insert `profiles` row → unlock session.
+
+**Signup flow (Phase 1.5 — current):** Signup form collects **name + email only** (no password) → `signInWithOtp` (magic link / email confirmation) with `name` in user metadata → **Check email** screen → user clicks confirmation link (deep link) → session established → **Vault setup** (user **sets** master password for the first time) → `updateUser(password)` + generate DEK → wrap → insert `profiles` row → unlock session. No profile/DEK until email verified. Master password is never collected at signup.
+
 **Login flow:** Auth sign-in → load profile wrap → derive KEK → unwrap DEK → session ready.  
 **Master password change (implemented in Settings):** unwrap DEK with old password → re-wrap with new → update Auth password + profile wrap in one coordinated flow. UI: `/settings/change-master-password`.
 
@@ -214,10 +237,21 @@ I will deliver SQL under `supabase/migrations/` covering:
 - `id` UUID PK
 - `user_id` UUID FK → profiles
 - `item_type` text/enum: `password` | `bank_account` | `atm_card` | `note`
+- `folder_id` UUID nullable FK → `vault_folders` (null = Uncategorized) — **Phase 1.5**
 - `encrypted_payload` text (AES-GCM ciphertext of JSON fields below)
 - `nonce` text
 - `created_at` / `updated_at` timestamptz  
 - Optional non-sensitive index aids only if needed later; v1 encrypts **all** fields including label (list decrypts client-side after unlock)
+
+`**vault_folders**` — **Phase 1.5**
+
+- `id` UUID PK
+- `user_id` UUID FK → profiles
+- `name` text (plaintext organizational metadata — not encrypted)
+- `sort_order` int (default 0; for manual folder ordering)
+- `created_at` / `updated_at` timestamptz
+- RLS: `auth.uid() = user_id`
+- No nested folders in v1 (single-level only)
 
 **Payload field contracts (JSON before encrypt):**
 
@@ -234,7 +268,7 @@ I will deliver SQL under `supabase/migrations/` covering:
 
 You will: create project → run migration SQL → create publishable key → put URL/publishable key in `.env`.
 
-## App features — Phase 1 (build now)
+## App features — Phase 1 (completed)
 
 ### Auth & unlock (session model)
 
@@ -259,7 +293,7 @@ flowchart TD
 
 
 
-- **Signup / first login:** email + master password (Supabase Auth) → derive KEK → unwrap DEK → vault session open
+- **Signup (Phase 1.5):** name + email only → check email → deep link → vault setup (**set** master password) → DEK/profile. **Login (returning):** email + master password unchanged.
 - **Later app opens** (Supabase session may still be valid): do **not** ask for email again; show **Unlock** screen — **fingerprint or master password** only
 - **Opening a vault item / viewing masked secrets** (password, PIN, CVV, account numbers, etc.): values stay masked until user passes **fingerprint or master password** (biometric preferred if enrolled; password always available fallback)
 - **Auto-lock** (Settings, device-local prefs): lock after foreground inactivity — 30 seconds, 1 minute, 5 minutes, 15 minutes, 30 minutes, or **While using app** (no foreground timeout). App going to background still locks. **Lock vault now** on Settings wipes the in-memory DEK and shows Unlock.
@@ -296,7 +330,7 @@ Auto-lock and re-auth timers are local (`SharedPreferences`). Theme syncs to Sup
 - CRUD for all four item types
 - Sensitive fields **always masked by default**; reveal requires fingerprint or master password per gate rules above
 - Timestamps shown in device timezone (`DateTime` local conversion from UTC)
-- **Health badges on home list:** each password-type row shows a small indicator (colored dot or icon) for weak, reused, old, or fine — same thresholds/logic as the Health tab (strength rules, reuse detection, `password_changed_at` age check). Computed from the shared session health state (see architecture note above), not re-evaluated separately when opening Health.
+- **Health badges on home list (Phase 1.5 update):** show badge only when `primaryFlag != fine` — i.e. weak/fair, reused, or old. Hide badge for fully healthy (strong + not reused + not old) passwords. Health tab unchanged.
 
 ### Password generator
 
@@ -375,6 +409,164 @@ flowchart LR
 
 Lock vault / logout use `go` to `/unlock` or `/login` and clear the vault stack. Edit save pops back to details (`home -> details`).
 
+## App features — Phase 1.5 (build next)
+
+Phase 1.5 extends vault organization, Home UX, and auth onboarding. All new UI reuses existing Rose vault components (`Scale`, `AppColors`, `AppIcon`, bottom sheets, list rows) — no separate UI pass.
+
+### Vault folders
+
+**Data model:** `vault_folders` table + nullable `folder_id` on `vault_items`. Folder names are plaintext (organizational metadata). Single-level folders only (no nesting).
+
+**Folder management (no dedicated folders page):**
+
+| Action | Trigger | UI |
+|--------|---------|-----|
+| Create folder | Long-press any folder section header (including Uncategorized) | Bottom sheet → **Create folder** → name dialog |
+| Rename folder | Long-press a **named** folder header | Bottom sheet → **Rename** → pre-filled name dialog |
+| Delete folder | Long-press a **named** folder header | Bottom sheet → **Delete** → confirm → items move to **Uncategorized** |
+| Assign folder | Create/edit vault item | Folder picker (default **Uncategorized**); **+ New folder** inline in picker |
+| Jump to folder | Tap folder name in section header | Bottom sheet lists folders in current type context → scroll to section only |
+
+- **Uncategorized** header long-press: **Create folder** only (no rename/delete).
+- New items default to **Uncategorized** unless user picks a folder on create/edit.
+- Delete folder never deletes items.
+
+**Feature slice:** extend `features/vault/` (or add `features/folders/` if cleaner) — domain entity `VaultFolder`, repository methods, Riverpod provider synced with vault list.
+
+### Home — grouping, search, sort, jump
+
+**Grouped list:**
+- Items displayed under **collapsible folder section headers** (all **expanded by default** on first load).
+- Section order: named folders first (by `sort_order` then name), **Uncategorized last**.
+- Type chips (All / Password / Bank / Card / Note) filter items; within active filter, grouping by folder remains.
+- Empty folder sections hidden while searching.
+
+**Search:** always **global** across all folders (not folder-scoped). Matching items appear under their folder headers.
+
+**Sort** (icon in Home header → bottom sheet; persisted in `SharedPreferences`):
+- Name A → Z / Z → A
+- Recently updated (newest first) — default
+- Oldest updated
+- Recently created / Oldest created
+- No "Type" sort (type chips cover that)
+- Sort applies **within each folder section**.
+
+**Folder jump sheet:** tap folder name in header → bottom sheet → select folder → **scroll to section** only. Other sections keep their collapsed/expanded state (no collapse of other folders).
+
+```mermaid
+flowchart TB
+  subgraph home [VaultHome loaded]
+    header[Greeting + sort icon]
+    search[Search global]
+    chips[Type chips]
+    list[Grouped collapsible sections]
+  end
+  chips --> list
+  list --> namedFolders[Named folders first]
+  list --> uncategorized[Uncategorized last]
+  namedFolders -->|tap folder name| jumpSheet[Folder jump sheet]
+  jumpSheet -->|select| scrollTo[Scroll to section]
+  namedFolders -->|long press| manageSheet[Create / Rename / Delete]
+```
+
+### Home — skeleton loading
+
+**Problem:** partial skeleton (list only) while search/chips/sort are interactive causes race conditions during load.
+
+**Solution:** on **initial load** (`vaultListProvider.loading && no cached items`), replace the **entire Home content** with animated shimmer placeholders mirroring the real layout:
+- Greeting row (avatar + text bars)
+- Search bar
+- Type chip pills
+- Sort affordance
+- Folder section headers + item rows
+
+- Shimmer uses `surfaceMuted` / `surface` sweep (Rose palette) — `VaultHomeSkeleton` in `shared/widgets/`.
+- **No real interactions** during skeleton state.
+- **Pull-to-refresh:** keep existing items + `RefreshIndicator` — no skeleton.
+- **Splash, login, unlock, other tabs:** keep existing `VaultLoader` — no skeleton.
+
+### Home — health badges (update)
+
+- Show `HealthBadge` on password rows only when `healthSnapshot.primaryFlag != ItemHealthFlag.fine`.
+- Show for: weak/fair, reused, old. Hide for fully healthy passwords.
+- Gating at call site in `vault_home_page.dart`; Health tab unchanged.
+
+### Auth — email verification + deep linking
+
+**Replaces Phase 1 signup workaround** (auto-`signIn` when `currentUserId == null` after signup).
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant App
+  participant Supabase
+  participant Email
+
+  User->>App: Signup name email only
+  App->>Supabase: signInWithOtp with name metadata
+  Supabase->>Email: Confirmation link
+  App->>User: CheckEmailScreen shows email back resend
+
+  User->>Email: Click link
+  Email->>App: Deep link nucleus://login-callback
+  App->>Supabase: getSessionFromUrl
+  Supabase-->>App: Session active
+
+  alt No profile yet
+    App->>User: VaultSetup set masterPassword
+    User->>App: Enter master password
+    App->>Supabase: updateUser password
+    App->>App: Generate DEK wrap profile unlock
+  end
+  App->>User: Home
+```
+
+**Signup form:** name and email only — **no password field**. Name stored in Supabase user metadata (`options.data.name`) at OTP/magic-link request time.
+
+**Auth API:** use `signInWithOtp` (creates user on first link click if not exists) with `emailRedirectTo` pointing to deep-link URI. Do **not** use `signUp` with a password at this stage.
+
+**Check email screen (`/check-email`):**
+- Shows the email address entered.
+- **Back** returns to signup so user can change email.
+- **Resend confirmation** button (re-invoke `signInWithOtp` or `auth.resend`).
+- No vault access; no profile/DEK created yet.
+
+**Deep link (Android v1):**
+- Redirect URI: `nucleus://login-callback` (or project-specific scheme).
+- Android `AndroidManifest.xml` intent filter (`VIEW` + scheme).
+- Supabase dashboard: Site URL + Redirect URLs include the scheme.
+- Handle in `main.dart` / router: `Supabase.instance.client.auth.getSessionFromUrl()` on incoming URI + `onAuthStateChange`.
+
+**Vault setup screen (`/vault-setup`):**
+- Router gate: `session exists && profile == null` → `/vault-setup` (not `/home`).
+- User **sets master password** for the first time (create + confirm fields).
+- On success:
+  1. `updateUser(password: masterPassword)` — sets Supabase Auth password (same string as vault master password going forward).
+  2. Generate DEK, wrap with KEK derived from master password, create `profiles` row (name from user metadata), cache DEK for biometrics, open unlocked session → `/home`.
+
+**Login (returning verified users):** unchanged — email + master password → load profile → unwrap DEK → unlock.
+
+**Same email again before confirm:** signup never stores a password, so a second attempt only calls `signInWithOtp` again (new confirmation link). No `re-register-unconfirmed` Edge Function. Confirmed accounts belong on login, not signup.
+
+**Router gates (updated):**
+
+```text
+No session              → /login or /signup
+Session, no profile     → /vault-setup (or /check-email if pending verify)
+Session + profile, locked → /unlock
+Session + profile, unlocked → /home
+```
+
+**Unified post-auth onboarding (future-proof for Google OAuth in Phase 2):** any auth provider that yields a session without a `profiles` row routes to `/vault-setup`.
+
+### Navigation updates (Phase 1.5)
+
+New routes: `/check-email`, `/vault-setup`.
+
+Auth-session present, email verified, profile missing → `/vault-setup`, not `/home`.
+
+Existing overlay routes unchanged. Lock/logout still `go` to `/unlock` or `/login`.
+
 ## Folder structure (target)
 
 ```
@@ -396,6 +588,10 @@ lib/
       domain/
       data/
       presentation/
+    folders/                # optional slice; may live under vault/
+      domain/
+      data/
+      presentation/
     generator/
       domain/
       data/                 # if any persistence; else domain + presentation only
@@ -411,7 +607,7 @@ lib/
       domain/
       data/
       presentation/
-  shared/                  # cross-feature widgets (Lottie loader, masked field, etc.)
+  shared/                  # cross-feature widgets (Lottie loader, masked field, VaultHomeSkeleton, etc.)
 assets/
   icons/                   # SVG UI icons
   avatars/                 # 60 preset PNGs (you supply)
@@ -427,6 +623,7 @@ Crypto lives behind a domain port (e.g. `VaultCrypto` / `KeyWrapService`) with t
 
 | Feature                | Keep in mind now                                                                                                          |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Google OAuth**       | "Continue with Google" on login/signup; new users route to same `/vault-setup` (create master password + DEK); no email verification for Google users; enable provider in Supabase dashboard |
 | Local / cloud / both   | Abstract `VaultRepository`; later add local DB (Drift/Isar) + sync flag column                                            |
 | Share by email         | Future `shares` table + re-encryption to recipient DEK (needs public key or wrap ceremony)                                |
 | Open site + auto-login | Android intents / custom tabs; never expose password in UI                                                                |
@@ -436,20 +633,24 @@ Crypto lives behind a domain port (e.g. `VaultCrypto` / `KeyWrapService`) with t
 | Hide-my-email          | External email relay provider later                                                                                       |
 | Travel mode            | Temporary hide/exclude vault subsets                                                                                      |
 | Duress unlock          | Secondary password → decoy vault or wipe flag (careful product/legal design)                                              |
+| Nested folders         | `parent_id` on `vault_folders` if single-level becomes limiting                                                           |
 
 
 Phase 1 code stays modular so these plug in without rewriting crypto core.
 
 ## Supabase collaboration checklist
 
-1. I write `supabase/migrations/001_initial.sql` (tables, enums, RLS, storage policies, triggers)
-2. You create Supabase project and run the SQL
-3. You enable Email auth; disable unused providers for now
-4. You create `avatars` bucket per migration notes
-5. You send **Project URL** + **publishable public key** for `.env`
-6. Drop **60 preset avatar PNGs** into `assets/avatars/` when ready (placeholders until then). Loading Lottie is created to match the Rose vault palette during bootstrap.
+1. I write `supabase/migrations/001_initial.sql` (tables, enums, RLS, storage policies, triggers) — **done**
+2. I write `supabase/migrations/002_folders.sql` (`vault_folders`, `folder_id` on `vault_items`, RLS) — **Phase 1.5**
+3. You create Supabase project and run the SQL migrations
+4. You enable **Email auth** with **email confirmation required**; configure redirect URL `nucleus://login-callback`
+5. You create `avatars` bucket per migration notes
+6. You send **Project URL** + **publishable public key** for `.env`
+7. Drop **60 preset avatar PNGs** into `assets/avatars/` when ready (placeholders until then). Loading Lottie is created to match the Rose vault palette during bootstrap.
 
 ## Implementation order
+
+**Phase 1 (completed):**
 
 1. Flutter project + Clean Architecture folders + deps + explicit theme tokens + scale/router + brand Lottie loader
 2. Supabase migration SQL + env wiring
@@ -461,9 +662,26 @@ Phase 1 code stays modular so these plug in without rewriting crypto core.
 8. Screenshot guard + Android polish
 9. README: run instructions, schema apply steps, asset drop-in notes, security notes
 
-## Out of scope for Phase 1
+**Phase 1.5 (next):**
+
+1. `002_folders.sql` migration + folder domain/data layer
+2. Folder CRUD (long-press header sheet, item form picker) + `folder_id` on vault CRUD
+3. Home grouped list (collapsible sections, type filter + folder grouping, global search)
+4. Home sort (sheet + SharedPreferences persistence)
+5. Folder jump sheet (scroll only)
+6. Home health badge gating (hide fine)
+7. `VaultHomeSkeleton` full-page shimmer on initial load
+8. Email verification flow: check-email screen (resend, back), remove auto-signIn workaround
+9. Deep link handler (Android intent filter + `getSessionFromUrl`)
+10. `/vault-setup` screen (set master password + `updateUser` → DEK/profile creation)
+11. Router gates for `profile == null`
+12. Update `ARCHITECTURE.md` + `CHANGELOG.md`
+
+## Out of scope for Phase 1 / 1.5
 
 - iOS shipping, web/desktop
+- Google OAuth (Phase 2)
 - Sharing, emergency access, OCR, documents, travel/duress, hide-my-email
 - Offline-first sync (interfaces only if useful)
+- Nested folders (Phase 2+)
 

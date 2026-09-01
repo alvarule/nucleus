@@ -1,12 +1,12 @@
-/// Login/signup form state and the signup crypto bootstrap (generate DEK, wrap,
-/// persist profile, open an unlocked session).
+/// Login/signup form state, email-link signup, and vault-setup crypto bootstrap.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nucleus/core/crypto/vault_crypto_service.dart';
 import 'package:nucleus/core/di/providers.dart';
 import 'package:nucleus/core/errors/app_exception.dart';
+import 'package:nucleus/core/errors/user_facing_error.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
 
-/// Loading and error flags for login/signup forms.
+/// Loading and error flags for login/signup/vault-setup forms.
 class AuthFormState {
   const AuthFormState({
     this.loading = false,
@@ -29,48 +29,99 @@ class AuthController extends StateNotifier<AuthFormState> {
 
   final Ref _ref;
 
-  /// Creates Auth user, wraps a new DEK with the master password, writes
-  /// `profiles`, stores DEK for biometrics, and unlocks the session.
-  Future<bool> signUp({
+  /// Name + email only. Sends the confirmation link; no DEK yet.
+  Future<bool> requestSignupLink({
     required String name,
     required String email,
-    required String password,
+  }) async {
+    state = state.copyWith(loading: true, clearError: true);
+    try {
+      await _ref.read(authRepositoryProvider).requestSignupLink(
+            email: email,
+            name: name,
+          );
+      state = state.copyWith(loading: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        loading: false,
+        error: await userFacingErrorMessage(
+          _ref.read(connectivityServiceProvider),
+          e,
+        ),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> resendSignupLink({
+    required String name,
+    required String email,
+  }) async {
+    state = state.copyWith(loading: true, clearError: true);
+    try {
+      await _ref.read(authRepositoryProvider).resendSignupLink(
+            email: email,
+            name: name,
+          );
+      state = state.copyWith(loading: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        loading: false,
+        error: await userFacingErrorMessage(
+          _ref.read(connectivityServiceProvider),
+          e,
+        ),
+      );
+      return false;
+    }
+  }
+
+  /// After the email link establishes a session: set Auth password, wrap DEK, profile.
+  Future<bool> completeVaultSetup({
+    required String masterPassword,
   }) async {
     state = state.copyWith(loading: true, clearError: true);
     try {
       final auth = _ref.read(authRepositoryProvider);
-      final crypto = _ref.read(vaultCryptoProvider);
-      final profileRepo = _ref.read(profileRepositoryProvider);
-
-      final userId = await auth.signUp(
-        email: email,
-        password: password,
-        name: name,
-      );
-
-      // If email confirmation is required, session may be null — try sign-in.
-      if (auth.currentUserId == null) {
-        await auth.signIn(email: email, password: password);
+      final userId = auth.currentUserId;
+      if (userId == null) {
+        throw const AuthFailure('Session expired. Open the email link again.');
       }
 
+      try {
+        await auth.updatePassword(masterPassword);
+      } on AuthFailure catch (e) {
+        // Retry after a failed previous setup: Auth password may already match.
+        final lower = e.message.toLowerCase();
+        if (!lower.contains('different') && !lower.contains('same_password')) {
+          rethrow;
+        }
+      }
+
+      final crypto = _ref.read(vaultCryptoProvider);
       final dek = crypto.generateDek();
-      // Lower memory than [KdfParams] defaults so first wrap is usable on phones.
       const params = KdfParams(memory: 19456, iterations: 2, parallelism: 2);
       final wrapped = await crypto.wrapDek(
         dek: dek,
-        masterPassword: password,
+        masterPassword: masterPassword,
         params: params,
       );
 
-      final profile = await profileRepo.createProfile(
-        id: userId,
-        name: name,
-        email: email,
-        encryptedDek: wrapped.encryptedDekBase64,
-        kekSalt: wrapped.saltBase64,
-        kdfParams: wrapped.kdfParams.toJson(),
-        avatarPresetId: '1',
-      );
+      final name = auth.currentUserName ??
+          (auth.currentUserEmail ?? 'User').split('@').first;
+      final email = auth.currentUserEmail ?? '';
+
+      final profile = await _ref.read(profileRepositoryProvider).createProfile(
+            id: userId,
+            name: name,
+            email: email,
+            encryptedDek: wrapped.encryptedDekBase64,
+            kekSalt: wrapped.saltBase64,
+            kdfParams: wrapped.kdfParams.toJson(),
+            avatarPresetId: '1',
+          );
 
       await _ref.read(biometricUnlockStoreProvider).saveDek(userId, dek);
       _ref.read(vaultSessionProvider.notifier).openUnlockedSession(
@@ -82,7 +133,10 @@ class AuthController extends StateNotifier<AuthFormState> {
     } catch (e) {
       state = state.copyWith(
         loading: false,
-        error: e is AppException ? e.message : e.toString(),
+        error: await userFacingErrorMessage(
+          _ref.read(connectivityServiceProvider),
+          e,
+        ),
       );
       return false;
     }
@@ -99,6 +153,15 @@ class AuthController extends StateNotifier<AuthFormState> {
             email: email,
             password: password,
           );
+      final userId = _ref.read(authRepositoryProvider).currentUserId;
+      if (userId != null) {
+        await _ref.read(vaultSessionProvider.notifier).loadProfile(userId);
+      }
+      final profile = _ref.read(vaultSessionProvider).profile;
+      if (profile == null) {
+        state = state.copyWith(loading: false);
+        return true;
+      }
       await _ref.read(vaultSessionProvider.notifier).unlockWithPassword(password);
       final session = _ref.read(vaultSessionProvider);
       if (!session.isUnlocked) {
@@ -113,7 +176,10 @@ class AuthController extends StateNotifier<AuthFormState> {
     } catch (e) {
       state = state.copyWith(
         loading: false,
-        error: e is AppException ? e.message : e.toString(),
+        error: await userFacingErrorMessage(
+          _ref.read(connectivityServiceProvider),
+          e,
+        ),
       );
       return false;
     }

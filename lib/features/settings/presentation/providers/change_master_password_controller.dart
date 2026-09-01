@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nucleus/core/crypto/vault_crypto_service.dart';
 import 'package:nucleus/core/di/providers.dart';
 import 'package:nucleus/core/errors/app_exception.dart';
+import 'package:nucleus/core/errors/user_facing_error.dart';
 import 'package:nucleus/features/profile/domain/entities/user_profile.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
 
@@ -162,9 +163,13 @@ class ChangeMasterPasswordController
       }
       state = state.copyWith(
         loading: false,
-        error: e is AppException
-            ? e.message
-            : 'Could not change master password. Please try again.',
+        error: await userFacingErrorMessage(
+          _ref.read(connectivityServiceProvider),
+          e is AppException
+              ? e
+              : AppException('Could not change master password. Please try again.',
+                  cause: e),
+        ),
       );
       return false;
     }

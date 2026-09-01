@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nucleus/core/di/providers.dart';
+import 'package:nucleus/core/errors/user_facing_error.dart';
 import 'package:nucleus/core/responsive/scale.dart';
 import 'package:nucleus/core/theme/app_colors.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
+import 'package:nucleus/features/vault/domain/entities/vault_folder.dart';
 import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
 import 'package:nucleus/features/vault/domain/password_field_helpers.dart';
 import 'package:nucleus/features/vault/presentation/providers/vault_list_provider.dart';
+import 'package:nucleus/features/vault/presentation/widgets/folder_sheets.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
 import 'package:nucleus/shared/widgets/sensitive_access.dart';
 import 'package:nucleus/shared/widgets/vault_text_field.dart';
@@ -36,6 +39,7 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
   bool _saving = false;
   String? _accountType = 'savings';
   String? _cardType = 'debit';
+  String? _folderId;
 
   @override
   void initState() {
@@ -51,6 +55,7 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
     }
     _accountType = initial['account_type'] as String? ?? 'savings';
     _cardType = initial['card_type'] as String? ?? 'debit';
+    _folderId = widget.existing?.folderId;
   }
 
   @override
@@ -151,6 +156,21 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
           child: ListView(
             padding: EdgeInsets.all(scale.lg),
             children: [
+              _FolderField(
+                folderId: _folderId,
+                folders: ref.watch(vaultListProvider).folders,
+                onTap: () async {
+                  final picked = await showFolderPickerSheet(
+                    context: context,
+                    ref: ref,
+                    folders: ref.read(vaultListProvider).folders,
+                    selectedId: _folderId,
+                  );
+                  if (picked == null) return;
+                  setState(() => _folderId = picked.isEmpty ? null : picked);
+                },
+              ),
+              SizedBox(height: scale.md),
               ...keys.asMap().entries.map((entry) {
                 final index = entry.key;
                 final fieldKey = entry.value;
@@ -288,7 +308,11 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
       final VaultItem saved;
       if (widget.existing != null) {
         saved = await repo.updateItem(
-          item: widget.existing!.copyWith(fields: fields),
+          item: widget.existing!.copyWith(
+            fields: fields,
+            folderId: _folderId,
+            clearFolderId: _folderId == null,
+          ),
           dek: session.dek!,
         );
       } else {
@@ -297,6 +321,7 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
           type: widget.type,
           fields: fields,
           dek: session.dek!,
+          folderId: _folderId,
         );
       }
       await ref.read(vaultListProvider.notifier).refresh();
@@ -311,10 +336,93 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        final message = await userFacingErrorMessage(
+          ref.read(connectivityServiceProvider),
+          e,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+}
+
+class _FolderField extends StatelessWidget {
+  const _FolderField({
+    required this.folderId,
+    required this.folders,
+    required this.onTap,
+  });
+
+  final String? folderId;
+  final List<VaultFolder> folders;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final scale = Scale.of(context);
+    final iconSize = scale.iconSm;
+    String label = 'Uncategorized';
+    if (folderId != null) {
+      for (final f in folders) {
+        if (f.id == folderId) {
+          label = f.name;
+          break;
+        }
+      }
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Folder',
+          style: TextStyle(
+            color: colors.textSecondary,
+            fontSize: scale.fontSm,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        SizedBox(height: scale.sm),
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(scale.radiusSm),
+          child: InputDecorator(
+            decoration: InputDecoration(
+              prefixIcon: SizedBox(
+                width: scale.s(48),
+                height: scale.s(48),
+                child: Center(
+                  child: AppIcon(
+                    'folder',
+                    size: iconSize,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ),
+              suffixIcon: IconButton(
+                onPressed: onTap,
+                icon: AppIcon(
+                  'chevron_down',
+                  size: iconSize,
+                  color: colors.textSecondary,
+                ),
+              ),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: scale.fontLg,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

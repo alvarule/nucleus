@@ -1,13 +1,21 @@
 /// Supabase Auth adapter. Maps SDK errors to [AuthFailure] with friendlier copy.
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:nucleus/core/errors/app_exception.dart';
+import 'package:nucleus/core/errors/offline_messages.dart';
+import 'package:nucleus/core/network/connectivity_service.dart';
 import 'package:nucleus/features/auth/domain/repositories/auth_repository.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
-  AuthRepositoryImpl(this._client);
+  AuthRepositoryImpl(this._client, this._connectivity);
 
   final SupabaseClient _client;
+  final ConnectivityService _connectivity;
 
+  Future<void> _ensureOnline() async {
+    if (!await _connectivity.hasConnection()) {
+      throw OfflineException(randomOfflineMessage());
+    }
+  }
   @override
   Stream<String?> authStateChanges() {
     return _client.auth.onAuthStateChange.map((event) => event.session?.user.id);
@@ -17,25 +25,46 @@ class AuthRepositoryImpl implements AuthRepository {
   String? get currentUserId => _client.auth.currentUser?.id;
 
   @override
-  Future<String> signUp({
+  String? get currentUserEmail => _client.auth.currentUser?.email;
+
+  @override
+  String? get currentUserName {
+    final meta = _client.auth.currentUser?.userMetadata;
+    final name = '${meta?['name'] ?? ''}'.trim();
+    return name.isEmpty ? null : name;
+  }
+
+  @override
+  Future<void> requestSignupLink({
     required String email,
-    required String password,
+    required String name,
+  }) {
+    return _sendSignupOtp(email: email, name: name);
+  }
+
+  @override
+  Future<void> resendSignupLink({
+    required String email,
+    required String name,
+  }) {
+    return _sendSignupOtp(email: email, name: name);
+  }
+
+  Future<void> _sendSignupOtp({
+    required String email,
     required String name,
   }) async {
+    await _ensureOnline();
     try {
-      final response = await _client.auth.signUp(
+      await _client.auth.signInWithOtp(
         email: email.trim(),
-        password: password,
+        emailRedirectTo: nucleusAuthRedirect,
         data: {'name': name.trim()},
+        shouldCreateUser: true,
       );
-      final user = response.user;
-      if (user == null) {
-        throw const AuthFailure(
-          'Sign up failed. Check email confirmation settings in Supabase.',
-        );
-      }
-      return user.id;
     } on AuthFailure {
+      rethrow;
+    } on OfflineException {
       rethrow;
     } catch (e) {
       throw AuthFailure(_friendly(e), cause: e);
@@ -47,6 +76,7 @@ class AuthRepositoryImpl implements AuthRepository {
     required String email,
     required String password,
   }) async {
+    await _ensureOnline();
     try {
       final response = await _client.auth.signInWithPassword(
         email: email.trim(),
@@ -59,6 +89,8 @@ class AuthRepositoryImpl implements AuthRepository {
       return user.id;
     } on AuthFailure {
       rethrow;
+    } on OfflineException {
+      rethrow;
     } catch (e) {
       throw AuthFailure(_friendly(e), cause: e);
     }
@@ -69,6 +101,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> updatePassword(String newPassword) async {
+    await _ensureOnline();
     try {
       final response = await _client.auth.updateUser(
         UserAttributes(password: newPassword),
@@ -77,6 +110,8 @@ class AuthRepositoryImpl implements AuthRepository {
         throw const AuthFailure('Could not update master password');
       }
     } on AuthFailure {
+      rethrow;
+    } on OfflineException {
       rethrow;
     } catch (e) {
       throw AuthFailure(_friendly(e), cause: e);
@@ -96,6 +131,10 @@ class AuthRepositoryImpl implements AuthRepository {
     }
     if (lower.contains('weak') || lower.contains('at least')) {
       return 'New master password is too weak';
+    }
+    if (lower.contains('already registered') ||
+        lower.contains('already been registered')) {
+      return 'An account with this email already exists. Log in instead.';
     }
     return text;
   }

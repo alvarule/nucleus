@@ -21,7 +21,14 @@ Future<void> main() async {
       !url.contains('YOUR_PROJECT') &&
       publishableKey != 'your_publishable_key_here' &&
       publishableKey != 'your_anon_key_here') {
-    await Supabase.initialize(url: url, publishableKey: publishableKey);
+    await Supabase.initialize(
+      url: url,
+      publishableKey: publishableKey,
+      authOptions: const FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.pkce,
+        detectSessionInUri: true,
+      ),
+    );
   } else {
     // Placeholder so widgets can mount in tests/dev without real credentials.
     // Auth and vault calls will fail until `.env` is configured.

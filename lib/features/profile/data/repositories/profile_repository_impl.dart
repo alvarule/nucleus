@@ -3,16 +3,26 @@ import 'dart:io';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:nucleus/core/errors/app_exception.dart' as app;
+import 'package:nucleus/core/errors/offline_messages.dart';
+import 'package:nucleus/core/network/connectivity_service.dart';
 import 'package:nucleus/features/auth/domain/repositories/auth_repository.dart';
 import 'package:nucleus/features/profile/domain/entities/user_profile.dart';
 
 class ProfileRepositoryImpl implements ProfileRepository {
-  ProfileRepositoryImpl(this._client);
+  ProfileRepositoryImpl(this._client, this._connectivity);
 
   final SupabaseClient _client;
+  final ConnectivityService _connectivity;
+
+  Future<void> _ensureOnline() async {
+    if (!await _connectivity.hasConnection()) {
+      throw app.OfflineException(randomOfflineMessage());
+    }
+  }
 
   @override
   Future<UserProfile?> getProfile(String userId) async {
+    await _ensureOnline();
     final row =
         await _client.from('profiles').select().eq('id', userId).maybeSingle();
     if (row == null) return null;
@@ -29,6 +39,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
     required Map<String, dynamic> kdfParams,
     String? avatarPresetId,
   }) async {
+    await _ensureOnline();
     final payload = {
       'id': id,
       'name': name,
@@ -47,6 +58,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
 
   @override
   Future<UserProfile> updateProfile(UserProfile profile) async {
+    await _ensureOnline();
     final payload = {
       'name': profile.name,
       'avatar_type': profile.avatarType.name,
@@ -71,6 +83,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
     required String userId,
     required String filePath,
   }) async {
+    await _ensureOnline();
     final fileName = '$userId/${DateTime.now().millisecondsSinceEpoch}.jpg';
     final bytes = await File(filePath).readAsBytes();
     await _client.storage.from('avatars').uploadBinary(
@@ -87,6 +100,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
   @override
   /// Bucket is private; UI needs a time-limited signed URL, not a public path.
   Future<String?> getAvatarPublicUrl(String path) async {
+    await _ensureOnline();
     try {
       final signed = await _client.storage
           .from('avatars')

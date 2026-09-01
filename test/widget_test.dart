@@ -3,7 +3,10 @@ import 'package:nucleus/core/crypto/vault_crypto_service.dart';
 import 'package:nucleus/features/generator/domain/password_generator.dart';
 import 'package:nucleus/features/health/domain/password_health_checker.dart';
 import 'package:nucleus/features/health/domain/use_cases/evaluate_password_health.dart';
+import 'package:nucleus/features/vault/domain/entities/vault_folder.dart';
 import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
+import 'package:nucleus/features/vault/domain/folder_sections.dart';
+import 'package:nucleus/features/vault/domain/vault_sort.dart';
 
 void main() {
   test('wrap and unwrap DEK', () async {
@@ -129,5 +132,53 @@ void main() {
     expect(health.forItem('1')!.isReused, isTrue);
     expect(health.forItem('2')!.isReused, isTrue);
     expect(health.forItem('3')!.isReused, isFalse);
+  });
+
+  test('folder sections put Uncategorized last and sort within folders', () {
+    final now = DateTime.now();
+    final work = VaultFolder(
+      id: 'f1',
+      userId: 'u',
+      name: 'Work',
+      sortOrder: 0,
+      createdAt: now,
+      updatedAt: now,
+    );
+    final items = [
+      VaultItem(
+        id: '1',
+        userId: 'u',
+        type: VaultItemType.note,
+        fields: {'label': 'Zebra'},
+        createdAt: now,
+        updatedAt: now,
+        folderId: 'f1',
+      ),
+      VaultItem(
+        id: '2',
+        userId: 'u',
+        type: VaultItemType.note,
+        fields: {'label': 'Alpha'},
+        createdAt: now,
+        updatedAt: now,
+        folderId: 'f1',
+      ),
+      VaultItem(
+        id: '3',
+        userId: 'u',
+        type: VaultItemType.note,
+        fields: {'label': 'Loose'},
+        createdAt: now,
+        updatedAt: now,
+      ),
+    ];
+    final sections = buildFolderSections(
+      items: items,
+      folders: [work],
+      sort: VaultSort.nameAsc,
+    );
+    expect(sections.map((s) => s.title).toList(), ['Work', 'Uncategorized']);
+    expect(sections.first.items.map((i) => i.label).toList(), ['Alpha', 'Zebra']);
+    expect(sections.last.items.single.label, 'Loose');
   });
 }

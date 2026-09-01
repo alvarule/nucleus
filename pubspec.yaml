@@ -26,6 +26,8 @@ dependencies:
   intl: ^0.20.2
   equatable: ^2.0.7
   shared_preferences: ^2.5.5
+  app_links: ^6.4.0
+  connectivity_plus: ^7.3.1
 
 dev_dependencies:
   flutter_test:

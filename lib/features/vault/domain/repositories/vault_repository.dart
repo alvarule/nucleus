@@ -19,6 +19,7 @@ abstract class VaultRepository {
     required VaultItemType type,
     required Map<String, dynamic> fields,
     required Uint8List dek,
+    String? folderId,
   });
 
   Future<VaultItem> updateItem({

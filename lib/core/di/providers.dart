@@ -3,11 +3,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:nucleus/core/crypto/vault_crypto_service.dart';
+import 'package:nucleus/core/network/connectivity_service.dart';
 import 'package:nucleus/features/auth/data/repositories/auth_repository_impl.dart';
 import 'package:nucleus/features/auth/domain/repositories/auth_repository.dart';
 import 'package:nucleus/features/profile/data/repositories/profile_repository_impl.dart';
 import 'package:nucleus/features/unlock/data/biometric_unlock_store.dart';
+import 'package:nucleus/features/vault/data/repositories/folder_repository_impl.dart';
 import 'package:nucleus/features/vault/data/repositories/vault_repository_impl.dart';
+import 'package:nucleus/features/vault/domain/repositories/folder_repository.dart';
 import 'package:nucleus/features/vault/domain/repositories/vault_repository.dart';
 
 final supabaseClientProvider = Provider<SupabaseClient>((ref) {
@@ -18,18 +21,36 @@ final vaultCryptoProvider = Provider<VaultCryptoService>((ref) {
   return VaultCryptoService();
 });
 
+final connectivityServiceProvider = Provider<ConnectivityService>((ref) {
+  return ConnectivityServiceImpl();
+});
+
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  return AuthRepositoryImpl(ref.watch(supabaseClientProvider));
+  return AuthRepositoryImpl(
+    ref.watch(supabaseClientProvider),
+    ref.watch(connectivityServiceProvider),
+  );
 });
 
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
-  return ProfileRepositoryImpl(ref.watch(supabaseClientProvider));
+  return ProfileRepositoryImpl(
+    ref.watch(supabaseClientProvider),
+    ref.watch(connectivityServiceProvider),
+  );
 });
 
 final vaultRepositoryProvider = Provider<VaultRepository>((ref) {
   return VaultRepositoryImpl(
     ref.watch(supabaseClientProvider),
     ref.watch(vaultCryptoProvider),
+    ref.watch(connectivityServiceProvider),
+  );
+});
+
+final folderRepositoryProvider = Provider<FolderRepository>((ref) {
+  return FolderRepositoryImpl(
+    ref.watch(supabaseClientProvider),
+    ref.watch(connectivityServiceProvider),
   );
 });
 

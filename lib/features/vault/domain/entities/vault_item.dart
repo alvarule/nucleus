@@ -43,6 +43,7 @@ class VaultItem extends Equatable {
     required this.fields,
     required this.createdAt,
     required this.updatedAt,
+    this.folderId,
   });
 
   final String id;
@@ -51,6 +52,8 @@ class VaultItem extends Equatable {
   final Map<String, dynamic> fields;
   final DateTime createdAt;
   final DateTime updatedAt;
+  /// Null means Uncategorized. Not encrypted.
+  final String? folderId;
 
   String get label => (fields['label'] as String?) ?? 'Untitled';
 
@@ -80,7 +83,11 @@ class VaultItem extends Equatable {
     return 'Ending with $tail';
   }
 
-  VaultItem copyWith({Map<String, dynamic>? fields}) {
+  VaultItem copyWith({
+    Map<String, dynamic>? fields,
+    String? folderId,
+    bool clearFolderId = false,
+  }) {
     return VaultItem(
       id: id,
       userId: userId,
@@ -88,11 +95,13 @@ class VaultItem extends Equatable {
       fields: fields ?? this.fields,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      folderId: clearFolderId ? null : (folderId ?? this.folderId),
     );
   }
 
   @override
-  List<Object?> get props => [id, userId, type, fields, createdAt, updatedAt];
+  List<Object?> get props =>
+      [id, userId, type, fields, createdAt, updatedAt, folderId];
 }
 
 /// Ciphertext row as stored in `vault_items` (unused by the repository today;

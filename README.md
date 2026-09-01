@@ -17,9 +17,10 @@ Zero-knowledge password manager for Android (Flutter + Supabase).
 
 1. Create a Supabase project.
 2. Enable **Email** auth (disable unused providers for now).
-3. In SQL Editor, run [`supabase/migrations/001_initial.sql`](supabase/migrations/001_initial.sql).
-4. Confirm the `avatars` storage bucket exists (created by the migration).
-5. Copy **Project URL** and **publishable key** (formerly called the anon public key).
+3. In SQL Editor, run [`supabase/migrations/001_initial.sql`](supabase/migrations/001_initial.sql) then [`supabase/migrations/002_folders.sql`](supabase/migrations/002_folders.sql).
+4. Confirm the `avatars` storage bucket exists (created by the first migration).
+5. Enable **Confirm email** and add redirect URL `nucleus://login-callback`.
+6. Copy **Project URL** and **publishable key** (formerly called the anon public key).
 
 ### 2. App env
 
@@ -53,7 +54,7 @@ Brand Lottie: `assets/animations/loading.json`.
 
 ## Security model
 
-1. Signup generates a random DEK + salt.
+1. After email confirmation, vault setup generates a random DEK + salt and sets the Auth password (same as master password).
 2. DEK is wrapped with a KEK derived from the master password via Argon2id.
 3. Wrapped DEK + salt + KDF params live on `profiles`.
 4. Vault payloads are AES-256-GCM encrypted with the DEK before upload.
@@ -62,7 +63,8 @@ Brand Lottie: `assets/animations/loading.json`.
 
 ## Features (Phase 1)
 
-- Email + master password accounts
+- Email confirmation + master password vault setup; returning login with email + master password
+- Folders (single-level) on Home with sort, global search, and type chips
 - Profile (name, email, 60 presets / custom photo, theme preference)
 - Vault types: password, bank account, ATM card, note
 - Unlock / reveal with fingerprint **or** master password

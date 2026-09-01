@@ -1,7 +1,10 @@
 /// Auth and profile repository contracts (domain). Implementations live under
-/// `features/*/data`. Profile lives here because signup creates both the user
-/// and the wrapped-DEK profile row.
+/// `features/*/data`. Profile lives here because vault setup creates both the
+/// Auth password and the wrapped-DEK profile row.
 import 'package:nucleus/features/profile/domain/entities/user_profile.dart';
+
+/// Deep-link target for email confirmation / magic-link landing.
+const nucleusAuthRedirect = 'nucleus://login-callback';
 
 /// Supabase Auth operations used by login, signup, logout, and password change.
 abstract class AuthRepository {
@@ -9,9 +12,18 @@ abstract class AuthRepository {
 
   String? get currentUserId;
 
-  Future<String> signUp({
+  String? get currentUserEmail;
+
+  String? get currentUserName;
+
+  /// Name + email only. Sends a confirmation / magic link. No password yet.
+  Future<void> requestSignupLink({
     required String email,
-    required String password,
+    required String name,
+  });
+
+  Future<void> resendSignupLink({
+    required String email,
     required String name,
   });
 

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nucleus/core/crypto/vault_crypto_service.dart';
 import 'package:nucleus/core/di/providers.dart';
 import 'package:nucleus/core/errors/app_exception.dart';
+import 'package:nucleus/core/errors/user_facing_error.dart';
 import 'package:nucleus/features/profile/domain/entities/user_profile.dart';
 import 'package:nucleus/features/settings/domain/security_timeouts.dart';
 import 'package:nucleus/features/settings/presentation/providers/security_preference_provider.dart';
@@ -19,6 +20,7 @@ class VaultSessionState extends Equatable {
     this.status = VaultSessionStatus.locked,
     this.dek,
     this.profile,
+    this.profileResolved = false,
     this.revealUntil,
     this.error,
   });
@@ -26,6 +28,8 @@ class VaultSessionState extends Equatable {
   final VaultSessionStatus status;
   final Uint8List? dek;
   final UserProfile? profile;
+  /// True after [loadProfile] so a missing profile is distinct from "not loaded yet".
+  final bool profileResolved;
   final DateTime? revealUntil;
   final String? error;
 
@@ -42,23 +46,27 @@ class VaultSessionState extends Equatable {
     VaultSessionStatus? status,
     Uint8List? dek,
     UserProfile? profile,
+    bool? profileResolved,
     DateTime? revealUntil,
     String? error,
     bool clearDek = false,
     bool clearError = false,
     bool clearReveal = false,
+    bool clearProfile = false,
   }) {
     return VaultSessionState(
       status: status ?? this.status,
       dek: clearDek ? null : (dek ?? this.dek),
-      profile: profile ?? this.profile,
+      profile: clearProfile ? null : (profile ?? this.profile),
+      profileResolved: profileResolved ?? this.profileResolved,
       revealUntil: clearReveal ? null : (revealUntil ?? this.revealUntil),
       error: clearError ? null : (error ?? this.error),
     );
   }
 
   @override
-  List<Object?> get props => [status, profile, revealUntil, error, dek?.length];
+  List<Object?> get props =>
+      [status, profile, profileResolved, revealUntil, error, dek?.length];
 }
 
 /// Owns unlock, lock, logout, and the two security timers (auto-lock + grace).
@@ -129,6 +137,7 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
       status: VaultSessionStatus.unlocked,
       dek: dek,
       profile: profile,
+      profileResolved: true,
       revealUntil: _revealUntilFromNow(),
     );
     _scheduleInactivityWatch();
@@ -136,8 +145,13 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
 
   /// Loads wrapped-DEK metadata before the unlock screen (does not unwrap).
   Future<void> loadProfile(String userId) async {
-    final profile = await _ref.read(profileRepositoryProvider).getProfile(userId);
-    state = state.copyWith(profile: profile);
+    final profile =
+        await _ref.read(profileRepositoryProvider).getProfile(userId);
+    state = state.copyWith(
+      profile: profile,
+      profileResolved: true,
+      clearProfile: profile == null,
+    );
   }
 
   /// Unwraps the DEK with the master password and caches it for biometrics.
@@ -170,10 +184,18 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
       await _ref.read(biometricUnlockStoreProvider).saveDek(userId, dek);
       _onUnlocked(dek: dek, profile: profile);
     } catch (e) {
+      final offline = e is OfflineException ||
+          isNetworkError(e) ||
+          !await _ref.read(connectivityServiceProvider).hasConnection();
       state = state.copyWith(
         status: VaultSessionStatus.locked,
         clearDek: true,
-        error: 'Wrong master password',
+        error: offline
+            ? await userFacingErrorMessage(
+                _ref.read(connectivityServiceProvider),
+                e,
+              )
+            : 'Wrong master password',
       );
     }
   }
@@ -259,6 +281,7 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
     state = VaultSessionState(
       status: VaultSessionStatus.locked,
       profile: state.profile,
+      profileResolved: state.profileResolved,
     );
   }
 

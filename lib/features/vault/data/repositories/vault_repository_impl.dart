@@ -6,21 +6,31 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:nucleus/core/crypto/vault_crypto_service.dart';
 import 'package:nucleus/core/errors/app_exception.dart';
+import 'package:nucleus/core/errors/offline_messages.dart';
+import 'package:nucleus/core/network/connectivity_service.dart';
 import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
 import 'package:nucleus/features/vault/domain/repositories/vault_repository.dart';
 
 class VaultRepositoryImpl implements VaultRepository {
-  VaultRepositoryImpl(this._client, this._crypto);
+  VaultRepositoryImpl(this._client, this._crypto, this._connectivity);
 
   final SupabaseClient _client;
   final VaultCryptoService _crypto;
+  final ConnectivityService _connectivity;
   final _uuid = const Uuid();
+
+  Future<void> _ensureOnline() async {
+    if (!await _connectivity.hasConnection()) {
+      throw OfflineException(randomOfflineMessage());
+    }
+  }
 
   @override
   Future<List<VaultItem>> listItems({
     required String userId,
     required Uint8List dek,
   }) async {
+    await _ensureOnline();
     final rows = await _client
         .from('vault_items')
         .select()
@@ -38,6 +48,7 @@ class VaultRepositoryImpl implements VaultRepository {
     required String id,
     required Uint8List dek,
   }) async {
+    await _ensureOnline();
     final row =
         await _client.from('vault_items').select().eq('id', id).single();
     return _decrypt(row, dek);
@@ -49,7 +60,9 @@ class VaultRepositoryImpl implements VaultRepository {
     required VaultItemType type,
     required Map<String, dynamic> fields,
     required Uint8List dek,
+    String? folderId,
   }) async {
+    await _ensureOnline();
     final id = _uuid.v4();
     // AAD ties ciphertext to this row so it cannot be copied onto another item.
     final aad = utf8.encode('$id:${type.dbValue}');
@@ -64,6 +77,7 @@ class VaultRepositoryImpl implements VaultRepository {
       'item_type': type.dbValue,
       'encrypted_payload': blob.ciphertextBase64,
       'nonce': blob.nonceBase64,
+      'folder_id': folderId,
     };
     final row =
         await _client.from('vault_items').insert(payload).select().single();
@@ -75,6 +89,7 @@ class VaultRepositoryImpl implements VaultRepository {
     required VaultItem item,
     required Uint8List dek,
   }) async {
+    await _ensureOnline();
     final aad = utf8.encode('${item.id}:${item.type.dbValue}');
     final blob = await _crypto.encryptPayload(
       dek: dek,
@@ -84,6 +99,7 @@ class VaultRepositoryImpl implements VaultRepository {
     final payload = {
       'encrypted_payload': blob.ciphertextBase64,
       'nonce': blob.nonceBase64,
+      'folder_id': item.folderId,
     };
     final row = await _client
         .from('vault_items')
@@ -96,6 +112,7 @@ class VaultRepositoryImpl implements VaultRepository {
 
   @override
   Future<void> deleteItem(String id) async {
+    await _ensureOnline();
     await _client.from('vault_items').delete().eq('id', id);
   }
 
@@ -121,6 +138,7 @@ class VaultRepositoryImpl implements VaultRepository {
         fields: fields,
         createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
         updatedAt: DateTime.parse(row['updated_at'] as String).toLocal(),
+        folderId: row['folder_id'] as String?,
       );
     } catch (e) {
       throw VaultException('Failed to decrypt vault item', cause: e);

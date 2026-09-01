@@ -13,22 +13,24 @@ lib/app.dart - Root MaterialApp: theme, router, lifecycle, activity tracking
 lib/router/app_router.dart - GoRouter routes, auth/lock redirects, splash
 lib/core/crypto/ - Argon2id KEK + AES-256-GCM wrap/payload crypto
 lib/core/di/ - Shared Riverpod providers (client, repos, crypto, biometric store)
-lib/core/errors/ - AppException / AuthFailure / CryptoException / VaultException
+lib/core/errors/ - AppException, OfflineException, friendly offline copy, user-facing error resolver
+lib/core/network/ - Connectivity probe before Supabase calls
 lib/core/lifecycle/ - Background lock observer
 lib/core/theme/ - Hand-authored Rose palette and ThemeData
 lib/core/responsive/ - Width-based layout scale from a 390pt baseline
-lib/features/auth/ - Login/signup UI, AuthController, AuthRepository
+lib/features/auth/ - Login/signup, check-email, vault-setup, AuthController, AuthRepository
 lib/features/unlock/ - Unlock page, in-memory vault session, device DEK store
-lib/features/vault/ - Encrypted CRUD, list/detail/form pages
+lib/features/vault/ - Encrypted CRUD, folders, list/detail/form pages
 lib/features/profile/ - Profile entity, repository impl, profile UI, avatars
 lib/features/settings/ - Theme, auto-lock, reveal grace, change master password
 lib/features/generator/ - Local password generator
 lib/features/health/ - Password health domain (evaluate use case), shared provider, triage UI, badges
-lib/shared/widgets/ - Shell, icons, fields, loader, sensitive-access gate
+lib/shared/widgets/ - Shell, icons, fields, loader, Home skeleton, sensitive-access gate
 assets/animations/ - Brand Lottie used by VaultLoader
 assets/icons/ - SVG icon set referenced by AppIcon
 assets/avatars/ - Preset avatar path used by Profile (see pubspec)
 supabase/migrations/001_initial.sql - profiles, vault_items, RLS, avatars bucket
+supabase/migrations/002_folders.sql - vault_folders, vault_items.folder_id
 pubspec.yaml - Dependencies and asset declarations
 .env - SUPABASE_URL + publishable/anon key (loaded at startup)
 ```
@@ -37,15 +39,17 @@ pubspec.yaml - Dependencies and asset declarations
 
 ### Authentication
 
-* **What it does:** Email + master-password sign-up and sign-in via Supabase Auth. Sign-up also generates a DEK, wraps it, writes a `profiles` row, caches the DEK for biometrics, and opens an unlocked session. Logout signs out Auth and clears the device DEK.
+* **What it does:** Signup is name + email only (`signInWithOtp` magic/confirmation link). After the user opens `nucleus://login-callback`, `/vault-setup` sets the master password (`updateUser`), generates and wraps a DEK, writes `profiles`, caches the DEK for biometrics, and opens an unlocked session. Returning users sign in with email + master password. Logout signs out Auth and clears the device DEK. An unconfirmed email that signs up again just receives another OTP.
 * **Files involved:**
   * `lib/features/auth/presentation/pages/login_page.dart`
   * `lib/features/auth/presentation/pages/signup_page.dart`
+  * `lib/features/auth/presentation/pages/check_email_page.dart`
+  * `lib/features/auth/presentation/pages/vault_setup_page.dart`
   * `lib/features/auth/presentation/providers/auth_controller.dart`
   * `lib/features/auth/domain/repositories/auth_repository.dart`
   * `lib/features/auth/data/repositories/auth_repository_impl.dart`
   * `lib/features/profile/data/repositories/profile_repository_impl.dart`
-* **Key decisions:** The Auth password and vault master password are the same string. After `signUp`, if email confirmation leaves `currentUserId` null, the controller immediately `signIn`s. KDF params used at signup are `memory: 19456, iterations: 2, parallelism: 2` (not the `KdfParams` class defaults). `ProfileRepository` is declared in the auth domain file because profile creation is part of signup.
+* **Key decisions:** Master password is never collected at signup. Auth password and vault master password are the same string, set at vault setup. `profiles` / DEK exist only after email verification. KDF params at wrap are `memory: 19456, iterations: 2, parallelism: 2`. Deep link scheme is `nucleus://login-callback`. Router: session + no profile → `/vault-setup`; session + profile + locked → `/unlock`.
 
 ### Vault session and unlock
 
@@ -57,21 +61,39 @@ pubspec.yaml - Dependencies and asset declarations
   * `lib/core/lifecycle/vault_lifecycle_observer.dart`
   * `lib/app.dart`
   * `lib/router/app_router.dart`
-* **Key decisions:** Master password is never stored. Biometric unlock stores a hex-encoded DEK in `FlutterSecureStorage` keyed by user id. Unlock auto-prompts biometrics once if a DEK exists. Lifecycle lock runs on `AppLifecycleState.paused` but skips while a biometric prompt is showing (`isAuthenticating`). Router redirects signed-in+locked users to `/unlock`, not `/login`. GoRouter refresh listens only to session **status** changes so reveal-grace updates do not rebuild routes.
+* **Key decisions:** Master password is never stored. Biometric unlock stores a hex-encoded DEK in `FlutterSecureStorage` keyed by user id. Unlock auto-prompts biometrics once if a DEK exists. Lifecycle lock runs on `AppLifecycleState.paused` but skips while a biometric prompt is showing (`isAuthenticating`). Router redirects signed-in+profile+locked users to `/unlock`; signed-in with no profile to `/vault-setup`. `profileResolved` distinguishes “profile not loaded” from “no profile row”. GoRouter refresh listens to session status, profile resolution, and Auth events so reveal-grace updates do not drop `extra` on edit routes.
 
 ### Encrypted vault
 
-* **What it does:** CRUD for four item types (`password`, `bank_account`, `atm_card`, `note`). Field maps are JSON-encrypted with the DEK before insert/update. The home list searches and filters client-side after decrypt.
+* **What it does:** CRUD for four item types (`password`, `bank_account`, `atm_card`, `note`). Field maps are JSON-encrypted with the DEK before insert/update. Items may belong to a single-level folder (`folder_id`, null = Uncategorized). The home list searches globally, filters by type, groups by folder, and sorts within each section.
 * **Files involved:**
   * `lib/features/vault/domain/entities/vault_item.dart`
+  * `lib/features/vault/domain/entities/vault_folder.dart`
+  * `lib/features/vault/domain/folder_sections.dart`
+  * `lib/features/vault/domain/vault_sort.dart`
   * `lib/features/vault/domain/repositories/vault_repository.dart`
+  * `lib/features/vault/domain/repositories/folder_repository.dart`
   * `lib/features/vault/data/repositories/vault_repository_impl.dart`
+  * `lib/features/vault/data/repositories/folder_repository_impl.dart`
   * `lib/features/vault/presentation/providers/vault_list_provider.dart`
   * `lib/features/vault/presentation/pages/vault_home_page.dart`
   * `lib/features/vault/presentation/pages/vault_item_detail_page.dart`
   * `lib/features/vault/presentation/pages/vault_item_form_page.dart`
+  * `lib/features/vault/presentation/widgets/folder_sheets.dart`
   * `lib/features/vault/domain/password_field_helpers.dart`
-* **Key decisions:** AES-GCM additional authenticated data is `id:itemType` so ciphertext cannot be moved between rows. Edit route `/vault/edit/:id` requires `extra` as a `VaultItem` or a map with `item` + optional `prefill`; missing extra shows “Missing item”. After save, the app `go`s to `/home` then `push`es detail so back returns to the list. Password items store `password_changed_at` in the encrypted payload (set on create; updated only when the `password` field changes). Vault home shows a health badge per password item from the shared session health state.
+  * `lib/shared/widgets/vault_home_skeleton.dart`
+* **Key decisions:** AES-GCM additional authenticated data is `id:itemType` so ciphertext cannot be moved between rows. Folder names are plaintext metadata. Delete folder uses ON DELETE SET NULL (items become Uncategorized). New items default to Uncategorized. Home sort is device-local SharedPreferences. Initial Home load uses a full-page shimmer (`VaultHomeSkeleton`); pull-to-refresh does not. Health badges on Home hide when `primaryFlag == fine`. Edit route `/vault/edit/:id` requires `extra` as a `VaultItem` or a map with `item` + optional `prefill`. After save, the app `go`s to `/home` then `push`es detail. Password items store `password_changed_at` in the encrypted payload.
+
+### Offline connectivity
+
+* **What it does:** Before Supabase calls, repositories check `connectivity_plus`. When offline (or on a transport failure), UI shows a randomly chosen friendly line from `offline_messages.dart` instead of raw socket/HTTP errors.
+* **Files involved:**
+  * `lib/core/network/connectivity_service.dart`
+  * `lib/core/errors/offline_messages.dart`
+  * `lib/core/errors/user_facing_error.dart`
+  * `lib/core/errors/app_exception.dart` (`OfflineException`)
+  * Repository impls under `auth`, `profile`, and `vault` data layers
+* **Key decisions:** Preflight in repositories for fast failure; `userFacingErrorMessage` centralizes mapping in controllers/pages. Unlock still shows “Wrong master password” for crypto failures when online.
 
 ### Sensitive reveal and copy
 
@@ -148,19 +170,22 @@ pubspec.yaml - Dependencies and asset declarations
 ```text
 main() → dotenv → Supabase.initialize → ScreenProtector → ProviderScope(NucleusApp)
 NucleusApp → goRouter → /splash
-splash → if Auth user: loadProfile → /unlock
+splash → if Auth user: loadProfile → /vault-setup if no profile else /unlock
        → else: /login
 ```
 
-GoRouter then keeps signed-out users on `/login`|`/signup` and signed-in+locked users on `/unlock`.
+GoRouter then keeps signed-out users on `/login`|`/signup`|`/check-email`, signed-in users without a profile on `/vault-setup`, and signed-in+locked users on `/unlock`.
 
 ### Sign up
 
 ```text
-SignupPage → AuthController.signUp
-  → AuthRepository.signUp (+ signIn if session missing)
-  → VaultCryptoService.generateDek + wrapDek(master password)
-  → ProfileRepository.createProfile (wrapped DEK, salt, kdf_params)
+SignupPage (name + email) → AuthController.requestSignupLink
+  → signInWithOtp (magic/confirmation link)
+  → /check-email (resend / back to signup)
+User opens email link → nucleus://login-callback → session
+  → loadProfile (null) → /vault-setup
+VaultSetupPage → updateUser(password) → generateDek + wrapDek
+  → ProfileRepository.createProfile
   → BiometricUnlockStore.saveDek
   → VaultSessionNotifier.openUnlockedSession
   → /home
@@ -194,7 +219,7 @@ UI → VaultListNotifier / form
   → Supabase table vault_items (ciphertext + nonce only)
 ```
 
-Search and type filters run in `VaultListState.visible` after decrypt.
+Search, type chips, folder grouping, and sort run in `VaultListState` after decrypt.
 
 ### Password health (session)
 
@@ -256,6 +281,10 @@ Pointer-down on the root `Listener` calls `touchActivity` to reset the inactivit
 | Lock on `paused`, skip while `isAuthenticating` | Background lock without killing the biometric sheet | Current implementation |
 | Placeholder Supabase init when `.env` is unset | UI can start in tests/dev; real Auth/vault calls fail until configured | Current implementation |
 | Hand-authored `AppColors` / `ColorScheme`, not `fromSeed` | Keep brand rose exact | Current implementation |
-| Feature folders with domain contracts + data impls; health uses `EvaluatePasswordHealth` use case | Presentation talks to repositories through Riverpod `StateNotifier`s; health scoring in `health/domain` shared by vault + health UI | Current implementation |
+| Signup is name+email OTP; master password set on `/vault-setup` after confirm | Avoid collecting a password before the email is verified; same setup path can later serve Google OAuth | 2026-09-01 |
+| Single-level plaintext `vault_folders`; items `folder_id` ON DELETE SET NULL | Organization without encrypting folder names or deleting items with a folder | 2026-09-01 |
+| Home full-page shimmer until first vault fetch; no interaction during load | Prevents search/sort racing an empty list | 2026-09-01 |
+| Home health badge hidden when `primaryFlag` is fine | Surface only weak/reused/old on the list | 2026-09-01 |
 | `StatefulShellRoute` + Home-rooted back | Double-back exits only on Home; other tabs return Home first | Current implementation |
 | `ScreenProtector.protectDataLeakageOn()` at startup | Block screenshots/screen recording where the plugin supports it | Current implementation |
+| `connectivity_plus` preflight + random friendly offline copy | Network calls fail fast offline; users see warm rotating messages instead of raw socket errors | 2026-09-01 |

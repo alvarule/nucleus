@@ -1,11 +1,11 @@
-/// Email + master-password sign-in. Success goes to `/home` because signup/login
-/// already opened an unlocked vault session.
+/// Email + master-password sign-in for returning users with an existing profile.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nucleus/core/responsive/scale.dart';
 import 'package:nucleus/core/theme/app_colors.dart';
 import 'package:nucleus/features/auth/presentation/providers/auth_controller.dart';
+import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
 import 'package:nucleus/shared/widgets/vault_text_field.dart';
 
@@ -38,7 +38,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           email: _email.text,
           password: _password.text,
         );
-    if (ok && mounted) context.go('/home');
+    if (ok && mounted) {
+      final profile = ref.read(vaultSessionProvider).profile;
+      context.go(profile == null ? '/vault-setup' : '/home');
+    }
   }
 
   @override
