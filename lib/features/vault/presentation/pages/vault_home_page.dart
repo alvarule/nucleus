@@ -2,7 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_sticky_header/flutter_sticky_header.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nucleus/core/di/providers.dart';
+import 'package:nucleus/core/errors/user_facing_error.dart';
 import 'package:nucleus/core/responsive/scale.dart';
 import 'package:nucleus/core/theme/app_colors.dart';
 import 'package:nucleus/features/health/domain/entities/item_health_snapshot.dart';
@@ -28,8 +31,10 @@ class VaultHomePage extends ConsumerStatefulWidget {
 class _VaultHomePageState extends ConsumerState<VaultHomePage> {
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
+  final _scrollController = ScrollController();
   final _collapsed = <String>{};
-  final _sectionKeys = <String, GlobalKey>{};
+  final _headerKeys = <String, GlobalKey>{};
+  final _selectedIds = <String>{};
 
   @override
   void initState() {
@@ -42,11 +47,87 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
   void dispose() {
     _searchController.dispose();
     _searchFocus.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  GlobalKey _keyFor(String folderId) =>
-      _sectionKeys.putIfAbsent(folderId, GlobalKey.new);
+  bool get _selectionMode => _selectedIds.isNotEmpty;
+
+  GlobalKey _headerKeyFor(String folderId) =>
+      _headerKeys.putIfAbsent(folderId, GlobalKey.new);
+
+  Widget _folderHeaderForSection(
+    VaultFolderSection section,
+    List<VaultFolderSection> sections,
+  ) {
+    return _FolderHeader(
+      title: section.title,
+      count: section.items.length,
+      expanded: !_collapsed.contains(section.folderId),
+      onTapName: () => _jumpToFolder(sections),
+      onToggle: () {
+        setState(() {
+          if (_collapsed.contains(section.folderId)) {
+            _collapsed.remove(section.folderId);
+          } else {
+            _collapsed.add(section.folderId);
+          }
+        });
+      },
+      onLongPress: () => showFolderManageSheet(
+        context: context,
+        ref: ref,
+        folderId: section.folderId,
+        title: section.title,
+      ),
+    );
+  }
+
+  void _clearSelection() => setState(() => _selectedIds.clear());
+
+  void _toggleItemSelection(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  Future<void> _moveSelectedItems() async {
+    final state = ref.read(vaultListProvider);
+    if (_selectedIds.isEmpty) return;
+
+    final picked = await showFolderPickerSheet(
+      context: context,
+      ref: ref,
+      folders: state.folders,
+    );
+    if (picked == null || !mounted) return;
+
+    final folderId = picked.isEmpty ? null : picked;
+    try {
+      await ref.read(vaultListProvider.notifier).moveItemsToFolder(
+            _selectedIds,
+            folderId,
+          );
+      if (!mounted) return;
+      _clearSelection();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Items moved')),
+      );
+    } catch (e) {
+      final message = await userFacingErrorMessage(
+        ref.read(connectivityServiceProvider),
+        e,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
+  }
 
   /// Copy is a sensitive action — same gate as reveal.
   Future<void> _copyPassword(VaultItem item) async {
@@ -196,15 +277,23 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
       },
     );
     if (target == null || !mounted) return;
-    final key = _sectionKeys[target];
-    final sectionContext = key?.currentContext;
-    if (sectionContext != null && sectionContext.mounted) {
-      await Scrollable.ensureVisible(
-        sectionContext,
-        duration: const Duration(milliseconds: 280),
-        alignment: 0.05,
-      );
+
+    if (_collapsed.contains(target)) {
+      setState(() => _collapsed.remove(target));
     }
+
+    void scrollToHeader() {
+      final headerContext = _headerKeyFor(target).currentContext;
+      if (headerContext != null && headerContext.mounted) {
+        Scrollable.ensureVisible(
+          headerContext,
+          duration: const Duration(milliseconds: 280),
+          alignment: 0,
+        );
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => scrollToHeader());
   }
 
   void _showSortSheet() {
@@ -226,11 +315,18 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
     final showSkeleton = !state.hasLoaded;
     final sections = state.sections;
 
-    return GestureDetector(
+    return PopScope(
+      canPop: !_selectionMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _selectionMode) _clearSelection();
+      },
+      child: GestureDetector(
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       behavior: HitTestBehavior.deferToChild,
       child: Scaffold(
         appBar: AppBar(
+          surfaceTintColor: Colors.transparent,
+          scrolledUnderElevation: 0,
           titleSpacing: scale.md,
           title: Row(
             children: [
@@ -293,7 +389,7 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
             ],
           ),
         ),
-        floatingActionButton: showSkeleton
+        floatingActionButton: showSkeleton || _selectionMode
             ? null
             : FloatingActionButton(
                 onPressed: () {
@@ -302,6 +398,51 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
                 },
                 child: AppIcon('plus', color: colors.onPrimary),
               ),
+        bottomNavigationBar: _selectionMode
+            ? Material(
+                elevation: 8,
+                color: colors.surface,
+                child: SafeArea(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: scale.md,
+                      vertical: scale.sm,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${_selectedIds.length} selected',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: scale.fontMd,
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _clearSelection,
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(fontSize: scale.fontMd),
+                          ),
+                        ),
+                        SizedBox(width: scale.sm),
+                        FilledButton.icon(
+                          onPressed: _moveSelectedItems,
+                          icon: AppIcon(
+                            'folder',
+                            size: scale.iconSm,
+                            color: colors.onPrimary,
+                          ),
+                          label: const Text('Move'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            : null,
         body: showSkeleton
             ? const VaultHomeSkeleton()
             : Column(
@@ -384,7 +525,7 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
                       ],
                     ),
                   ),
-                  SizedBox(height: scale.sm),
+                  SizedBox(height: scale.s(6)),
                   Expanded(
                     child: NotificationListener<UserScrollNotification>(
                       onNotification: (_) {
@@ -410,88 +551,105 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
                               onRefresh: () => ref
                                   .read(vaultListProvider.notifier)
                                   .refresh(),
-                              child: ListView.builder(
-                                padding: EdgeInsets.only(bottom: scale.s(80)),
-                                itemCount: sections.length,
-                                itemBuilder: (context, sectionIndex) {
-                                  final section = sections[sectionIndex];
-                                  final collapsed = _collapsed.contains(
-                                    section.folderId,
-                                  );
-                                  return KeyedSubtree(
-                                    key: _keyFor(section.folderId),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        _FolderHeader(
-                                          title: section.title,
-                                          count: section.items.length,
-                                          expanded: !collapsed,
-                                          onTapName: () =>
-                                              _jumpToFolder(sections),
-                                          onToggle: () {
-                                            setState(() {
-                                              if (collapsed) {
-                                                _collapsed.remove(
-                                                  section.folderId,
-                                                );
-                                              } else {
-                                                _collapsed.add(
-                                                  section.folderId,
-                                                );
-                                              }
-                                            });
-                                          },
-                                          onLongPress: () =>
-                                              showFolderManageSheet(
-                                                context: context,
-                                                ref: ref,
-                                                folderId: section.folderId,
-                                                title: section.title,
-                                              ),
+                              child: CustomScrollView(
+                                controller: _scrollController,
+                                physics:
+                                    const AlwaysScrollableScrollPhysics(),
+                                slivers: [
+                                  for (final section in sections)
+                                    SliverStickyHeader(
+                                      header: ColoredBox(
+                                        color: colors.bg,
+                                        child: KeyedSubtree(
+                                          key: _headerKeyFor(
+                                            section.folderId,
+                                          ),
+                                          child: _folderHeaderForSection(
+                                            section,
+                                            sections,
+                                          ),
                                         ),
-                                        if (!collapsed)
-                                          ...section.items.map((item) {
-                                            return _VaultItemTile(
-                                              item: item,
-                                              health:
-                                                  item.type ==
-                                                      VaultItemType.password
-                                                  ? health.forItem(item.id)
-                                                  : null,
-                                              onCopy: () => _copyPassword(item),
-                                              onOpen: () {
-                                                FocusManager
-                                                    .instance
-                                                    .primaryFocus
-                                                    ?.unfocus();
-                                                context.push(
-                                                  '/vault/${item.id}',
-                                                );
-                                              },
-                                              confirmDelete: () =>
-                                                  _confirmDelete(item),
-                                              onDeleted: () {
-                                                ref
-                                                    .read(
-                                                      vaultListProvider
-                                                          .notifier,
-                                                    )
-                                                    .delete(item.id);
-                                              },
-                                            );
-                                          }),
-                                      ],
+                                      ),
+                                      sliver: _collapsed.contains(
+                                        section.folderId,
+                                      )
+                                          ? const SliverToBoxAdapter(
+                                              child: SizedBox.shrink(),
+                                            )
+                                          : SliverList(
+                                              delegate:
+                                                  SliverChildBuilderDelegate(
+                                                (context, itemIndex) {
+                                                  final item = section
+                                                      .items[itemIndex];
+                                                  final selected = _selectedIds
+                                                      .contains(item.id);
+                                                  return _VaultItemTile(
+                                                    item: item,
+                                                    health: item.type ==
+                                                            VaultItemType
+                                                                .password
+                                                        ? health
+                                                            .forItem(item.id)
+                                                        : null,
+                                                    selectionMode:
+                                                        _selectionMode,
+                                                    selected: selected,
+                                                    onCopy: () =>
+                                                        _copyPassword(item),
+                                                    onOpen: () {
+                                                      if (_selectionMode) {
+                                                        _toggleItemSelection(
+                                                          item.id,
+                                                        );
+                                                        return;
+                                                      }
+                                                      FocusManager
+                                                          .instance
+                                                          .primaryFocus
+                                                          ?.unfocus();
+                                                      context.push(
+                                                        '/vault/${item.id}',
+                                                      );
+                                                    },
+                                                    onLongPress: () {
+                                                      HapticFeedback
+                                                          .mediumImpact();
+                                                      setState(
+                                                        () => _selectedIds
+                                                            .add(item.id),
+                                                      );
+                                                    },
+                                                    confirmDelete: () =>
+                                                        _confirmDelete(item),
+                                                    onDeleted: () {
+                                                      ref
+                                                          .read(
+                                                            vaultListProvider
+                                                                .notifier,
+                                                          )
+                                                          .delete(item.id);
+                                                    },
+                                                  );
+                                                },
+                                                childCount:
+                                                    section.items.length,
+                                              ),
+                                            ),
                                     ),
-                                  );
-                                },
+                                  SliverPadding(
+                                    padding: EdgeInsets.only(
+                                      bottom: scale.s(80),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                     ),
                   ),
                 ],
               ),
+      ),
       ),
     );
   }
@@ -567,74 +725,80 @@ class _FolderHeader extends StatelessWidget {
 
     return Padding(
       padding: EdgeInsets.fromLTRB(scale.md, scale.xs, scale.md, 0),
-      child: Material(
-        color: colors.surfaceMuted,
-        borderRadius: BorderRadius.circular(scale.radiusSm),
-        child: InkWell(
-          onTap: onTapName,
-          onLongPress: onLongPress,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.surfaceMuted,
           borderRadius: BorderRadius.circular(scale.radiusSm),
-          child: Padding(
-            padding: EdgeInsets.only(
-              left: scale.sm,
-              right: scale.xs,
-              top: scale.xs,
-              bottom: scale.xs,
-            ),
-            child: Row(
-              children: [
-                AppIcon('folder', color: colors.primary, size: scale.iconSm),
-                SizedBox(width: scale.sm),
-                Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: scale.fontSm,
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          surfaceTintColor: Colors.transparent,
+          child: InkWell(
+            onTap: onTapName,
+            onLongPress: onLongPress,
+            borderRadius: BorderRadius.circular(scale.radiusSm),
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: scale.sm,
+                right: scale.xs,
+                top: scale.xs,
+                bottom: scale.xs,
+              ),
+              child: Row(
+                children: [
+                  AppIcon('folder', color: colors.primary, size: scale.iconSm),
+                  SizedBox(width: scale.sm),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: scale.fontSm,
+                      ),
                     ),
                   ),
-                ),
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: scale.sm,
-                    vertical: scale.xs,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: BorderRadius.circular(scale.radiusSm),
-                  ),
-                  child: Text(
-                    '$count',
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: scale.fontSm,
-                      fontWeight: FontWeight.w600,
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: scale.sm,
+                      vertical: scale.xs,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.surface,
+                      borderRadius: BorderRadius.circular(scale.radiusSm),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: scale.fontSm,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-                IconButton(
-                  tooltip: expanded ? 'Collapse' : 'Expand',
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: BoxConstraints(
-                    minWidth: scale.s(36),
-                    minHeight: scale.s(36),
-                  ),
-                  onPressed: onToggle,
-                  icon: AnimatedRotation(
-                    turns: expanded ? 0 : -0.25,
-                    duration: const Duration(milliseconds: 180),
-                    child: AppIcon(
-                      'chevron_down',
-                      color: colors.textSecondary,
-                      size: scale.iconSm,
+                  IconButton(
+                    tooltip: expanded ? 'Collapse' : 'Expand',
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: BoxConstraints(
+                      minWidth: scale.s(36),
+                      minHeight: scale.s(36),
+                    ),
+                    onPressed: onToggle,
+                    icon: AnimatedRotation(
+                      turns: expanded ? 0 : -0.25,
+                      duration: const Duration(milliseconds: 180),
+                      child: AppIcon(
+                        'chevron_down',
+                        color: colors.textSecondary,
+                        size: scale.iconSm,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -647,16 +811,22 @@ class _VaultItemTile extends StatelessWidget {
   const _VaultItemTile({
     required this.item,
     required this.health,
+    required this.selectionMode,
+    required this.selected,
     required this.onCopy,
     required this.onOpen,
+    required this.onLongPress,
     required this.confirmDelete,
     required this.onDeleted,
   });
 
   final VaultItem item;
   final ItemHealthSnapshot? health;
+  final bool selectionMode;
+  final bool selected;
   final VoidCallback onCopy;
   final VoidCallback onOpen;
+  final VoidCallback onLongPress;
   final Future<bool> Function() confirmDelete;
   final VoidCallback onDeleted;
 
@@ -669,6 +839,76 @@ class _VaultItemTile extends StatelessWidget {
     final showBadge =
         health != null && health!.primaryFlag != ItemHealthFlag.fine;
 
+    final tile = Column(
+      children: [
+        ListTile(
+          onLongPress: onLongPress,
+          leading: selectionMode
+              ? Icon(
+                  selected ? Icons.check_circle : Icons.circle_outlined,
+                  color: selected ? colors.primary : colors.textTertiary,
+                  size: scale.iconMd,
+                )
+              : Container(
+                  width: scale.s(44),
+                  height: scale.s(44),
+                  decoration: BoxDecoration(
+                    color: colors.primarySoft,
+                    borderRadius: BorderRadius.circular(scale.radiusSm),
+                  ),
+                  child: Center(
+                    child: AppIcon(item.type.icon, color: colors.primary),
+                  ),
+                ),
+          title: Text(
+            item.label,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: scale.fontLg,
+              color: colors.textPrimary,
+            ),
+          ),
+          subtitle: subtitle == null
+              ? null
+              : Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: scale.fontSm,
+                  ),
+                ),
+          trailing: selectionMode
+              ? null
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (showBadge)
+                      Padding(
+                        padding: EdgeInsets.only(right: scale.xs),
+                        child: HealthBadge(snapshot: health!),
+                      ),
+                    if (hasPassword)
+                      IconButton(
+                        tooltip: 'Copy password',
+                        onPressed: () {
+                          FocusManager.instance.primaryFocus?.unfocus();
+                          onCopy();
+                        },
+                        icon: AppIcon('copy', color: colors.textSecondary),
+                      ),
+                    AppIcon('chevron_right', color: colors.textTertiary),
+                  ],
+                ),
+          selected: selected,
+          selectedTileColor: colors.primarySoft.withValues(alpha: 0.35),
+          onTap: onOpen,
+        ),
+        Divider(height: 1, color: colors.border),
+      ],
+    );
+
+    if (selectionMode) return tile;
+
     return Dismissible(
       key: ValueKey(item.id),
       direction: DismissDirection.endToStart,
@@ -680,62 +920,7 @@ class _VaultItemTile extends StatelessWidget {
         color: colors.danger,
         child: AppIcon('delete', color: colors.onPrimary),
       ),
-      child: Column(
-        children: [
-          ListTile(
-            leading: Container(
-              width: scale.s(44),
-              height: scale.s(44),
-              decoration: BoxDecoration(
-                color: colors.primarySoft,
-                borderRadius: BorderRadius.circular(scale.radiusSm),
-              ),
-              child: Center(
-                child: AppIcon(item.type.icon, color: colors.primary),
-              ),
-            ),
-            title: Text(
-              item.label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: scale.fontLg,
-                color: colors.textPrimary,
-              ),
-            ),
-            subtitle: subtitle == null
-                ? null
-                : Text(
-                    subtitle,
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: scale.fontSm,
-                    ),
-                  ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (showBadge)
-                  Padding(
-                    padding: EdgeInsets.only(right: scale.xs),
-                    child: HealthBadge(snapshot: health!),
-                  ),
-                if (hasPassword)
-                  IconButton(
-                    tooltip: 'Copy password',
-                    onPressed: () {
-                      FocusManager.instance.primaryFocus?.unfocus();
-                      onCopy();
-                    },
-                    icon: AppIcon('copy', color: colors.textSecondary),
-                  ),
-                AppIcon('chevron_right', color: colors.textTertiary),
-              ],
-            ),
-            onTap: onOpen,
-          ),
-          Divider(height: 1, color: colors.border),
-        ],
-      ),
+      child: tile,
     );
   }
 }

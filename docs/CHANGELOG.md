@@ -1,5 +1,11 @@
 # Changelog
 
+## [2026-09-03] Vault Home — sticky folders, multi-select move, jump fix
+
+**Summary:** Home uses `SliverStickyHeader` (`flutter_sticky_header`) so folder headers stick and push in the same scroll column. Long-press multi-select + bulk move via folder picker (`FolderPickerSelection.destination` vs `current` on the form). Jump-to-folder targets header keys on item-level slivers.
+**Files:** `lib/features/vault/presentation/pages/vault_home_page.dart`, `lib/features/vault/presentation/providers/vault_list_provider.dart`, `pubspec.yaml`, `docs/ARCHITECTURE.md`
+**Reasoning:** Sticky headers improve orientation while scrolling; sliver layout avoids scrolling an entire section subtree; bulk move reuses encrypted `updateItem` and offline-friendly errors.
+
 ## [2026-09-01] Friendly offline connectivity errors
 
 **Summary:** Added `connectivity_plus` preflight before Supabase calls. When offline or on network failures, the app shows a randomly chosen warm message from a curated list instead of raw socket/HTTP errors.

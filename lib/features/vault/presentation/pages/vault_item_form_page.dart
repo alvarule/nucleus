@@ -164,7 +164,8 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
                     context: context,
                     ref: ref,
                     folders: ref.read(vaultListProvider).folders,
-                    selectedId: _folderId,
+                    selection: FolderPickerSelection.current,
+                    currentFolderId: _folderId,
                   );
                   if (picked == null) return;
                   setState(() => _folderId = picked.isEmpty ? null : picked);

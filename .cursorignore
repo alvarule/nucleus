@@ -1,0 +1,27 @@
+# Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
+# --- Build & generated output ---
+build/
+
+# --- Platform-specific native projects ---
+android/
+ios/
+macos/
+linux/
+windows/
+web/
+
+# --- But allow the common config files AI agents actually need to edit ---
+!android/app/src/main/AndroidManifest.xml
+!android/app/build.gradle
+!android/build.gradle
+!android/gradle.properties
+
+!ios/Runner/Info.plist
+!ios/Podfile
+
+!macos/Runner/Info.plist
+!macos/Runner/DebugProfile.entitlements
+!macos/Runner/Release.entitlements
+
+!web/index.html
+!web/manifest.json

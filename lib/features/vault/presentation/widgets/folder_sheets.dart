@@ -427,12 +427,21 @@ Future<void> showFolderManageSheet({
   );
 }
 
+/// How the folder picker highlights a row (move vs. editing an item's folder).
+enum FolderPickerSelection {
+  /// Choose a destination — no folder pre-highlighted.
+  destination,
+  /// Item form — show check on the item's current folder (null = Uncategorized).
+  current,
+}
+
 /// Pick a folder for a vault item. Empty string = Uncategorized.
 Future<String?> showFolderPickerSheet({
   required BuildContext context,
   required WidgetRef ref,
   required List<VaultFolder> folders,
-  String? selectedId,
+  FolderPickerSelection selection = FolderPickerSelection.destination,
+  String? currentFolderId,
 }) async {
   final colors = context.colors;
   final scale = Scale.of(context);
@@ -446,6 +455,11 @@ Future<String?> showFolderPickerSheet({
       borderRadius: BorderRadius.vertical(top: Radius.circular(scale.radiusLg)),
     ),
     builder: (ctx) {
+      final showCurrent = selection == FolderPickerSelection.current;
+      final uncategorizedCurrent =
+          showCurrent &&
+          (currentFolderId == null || currentFolderId.isEmpty);
+
       return SafeArea(
         child: Padding(
           padding: EdgeInsets.fromLTRB(scale.md, 0, scale.md, scale.md),
@@ -469,7 +483,7 @@ Future<String?> showFolderPickerSheet({
                     _SheetOption(
                       icon: 'folder',
                       label: 'Uncategorized',
-                      selected: selectedId == null,
+                      selected: uncategorizedCurrent,
                       onTap: () => Navigator.pop(ctx, ''),
                     ),
                     ...folders.map(
@@ -478,7 +492,7 @@ Future<String?> showFolderPickerSheet({
                         child: _SheetOption(
                           icon: 'folder',
                           label: f.name,
-                          selected: selectedId == f.id,
+                          selected: showCurrent && currentFolderId == f.id,
                           onTap: () => Navigator.pop(ctx, f.id),
                         ),
                       ),

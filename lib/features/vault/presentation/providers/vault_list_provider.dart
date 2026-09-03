@@ -163,6 +163,35 @@ class VaultListNotifier extends StateNotifier<VaultListState> {
     await _ref.read(folderRepositoryProvider).deleteFolder(id);
     await refresh();
   }
+
+  /// Updates `folder_id` for each item (null = Uncategorized). Skips no-op moves.
+  Future<void> moveItemsToFolder(
+    Set<String> itemIds,
+    String? folderId,
+  ) async {
+    final session = _ref.read(vaultSessionProvider);
+    final dek = session.dek;
+    if (!session.isUnlocked || dek == null || itemIds.isEmpty) return;
+
+    final targetId =
+        (folderId == null || folderId.isEmpty) ? null : folderId;
+    final repo = _ref.read(vaultRepositoryProvider);
+    final byId = {for (final i in state.items) i.id: i};
+
+    for (final id in itemIds) {
+      final item = byId[id];
+      if (item == null) continue;
+      final current = item.folderId;
+      final same = (current == null && targetId == null) || current == targetId;
+      if (same) continue;
+
+      final updated = targetId == null
+          ? item.copyWith(clearFolderId: true)
+          : item.copyWith(folderId: targetId);
+      await repo.updateItem(item: updated, dek: dek);
+    }
+    await refresh();
+  }
 }
 
 final vaultListProvider =
