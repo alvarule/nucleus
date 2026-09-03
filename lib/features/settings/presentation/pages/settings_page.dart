@@ -14,8 +14,11 @@ import 'package:nucleus/features/unlock/presentation/providers/vault_session_pro
 import 'package:nucleus/features/vault/domain/entities/vault_sync_mode.dart';
 import 'package:nucleus/features/vault/presentation/providers/vault_list_provider.dart';
 import 'package:nucleus/features/vault/presentation/widgets/vault_sync_dialogs.dart';
+import 'package:nucleus/shared/widgets/app_buttons.dart';
+import 'package:nucleus/shared/widgets/app_dialog.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
-import 'package:nucleus/shared/widgets/vault_text_field.dart';
+import 'package:nucleus/shared/widgets/app_option_sheet.dart';
+import 'package:nucleus/shared/widgets/ui_list_group.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -31,17 +34,9 @@ class SettingsPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
-        padding: EdgeInsets.all(scale.lg),
+        padding: EdgeInsets.fromLTRB(scale.md, scale.sm, scale.md, scale.lg),
         children: [
-          Text(
-            'Appearance',
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontWeight: FontWeight.w600,
-              fontSize: scale.fontSm,
-            ),
-          ),
-          SizedBox(height: scale.sm),
+          const UiSectionLabel('Appearance'),
           Row(
             children: [
               Expanded(
@@ -72,53 +67,40 @@ class SettingsPage extends ConsumerWidget {
               ),
             ],
           ),
-          SizedBox(height: scale.xl),
-          Text(
-            'Sync',
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontWeight: FontWeight.w600,
-              fontSize: scale.fontSm,
-            ),
-          ),
-          SizedBox(height: scale.sm),
+          const UiSectionLabel('Sync'),
           if (profile != null)
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              secondary: AppIcon('device', color: colors.primary),
-              title: const Text('Sync new items to cloud'),
-              subtitle: Text(
-                profile.defaultSyncMode == VaultSyncMode.cloud
-                    ? 'New vault items upload to the cloud by default'
-                    : 'New vault items stay on this device only',
-                style: TextStyle(color: colors.textSecondary),
-              ),
-              value: profile.defaultSyncMode == VaultSyncMode.cloud,
-              onChanged: (syncToCloud) => _onDefaultSyncToggle(
-                context,
-                ref,
-                profile,
-                syncToCloud,
+            _SettingsRow(
+              icon: 'device',
+              title: 'Sync new items to cloud',
+              subtitle: profile.defaultSyncMode == VaultSyncMode.cloud
+                  ? 'New items upload by default'
+                  : 'New items stay on this device',
+              trailing: Switch.adaptive(
+                value: profile.defaultSyncMode == VaultSyncMode.cloud,
+                onChanged: (syncToCloud) => _onDefaultSyncToggle(
+                  context,
+                  ref,
+                  profile,
+                  syncToCloud,
+                ),
+                activeThumbColor: colors.onPrimary,
+                activeTrackColor: colors.primary,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),
-          Text(
-            'Local-only items are not backed up to the cloud. Encrypted export/import may be added later.',
-            style: TextStyle(
-              color: colors.textTertiary,
-              fontSize: scale.fontSm,
+          Padding(
+            padding: EdgeInsets.fromLTRB(scale.xs, scale.sm, scale.xs, 0),
+            child: Text(
+              'Local-only items are not backed up. Per-item sync can be changed when editing.',
+              style: TextStyle(
+                color: colors.textTertiary,
+                fontSize: scale.fontSm,
+                height: 1.35,
+              ),
             ),
           ),
-          SizedBox(height: scale.xl),
-          Text(
-            'Security',
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontWeight: FontWeight.w600,
-              fontSize: scale.fontSm,
-            ),
-          ),
-          SizedBox(height: scale.sm),
-          _SecurityTile(
+          const UiSectionLabel('Security'),
+          _SettingsRow(
             icon: 'shield',
             title: 'App Login MFA',
             subtitle: profile?.loginTotpEnabled == true
@@ -132,19 +114,19 @@ class SettingsPage extends ConsumerWidget {
               }
             },
           ),
-          _SecurityTile(
+          _SettingsRow(
             icon: 'timer',
             title: 'Auto-lock vault',
             subtitle: security.autoLock.label,
             onTap: () => _pickAutoLock(context, ref, security.autoLock),
           ),
-          _SecurityTile(
+          _SettingsRow(
             icon: 'eye',
             title: 'Re-auth for secrets',
             subtitle: security.revealGrace.label,
             onTap: () => _pickRevealGrace(context, ref, security.revealGrace),
           ),
-          _SecurityTile(
+          _SettingsRow(
             icon: 'timer',
             title: 'Password age threshold',
             subtitle: security.passwordAgeThreshold.label,
@@ -154,30 +136,29 @@ class SettingsPage extends ConsumerWidget {
               security.passwordAgeThreshold,
             ),
           ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: AppIcon('lock', color: colors.primary),
-            title: const Text('Change master password'),
-            subtitle: Text(
-              'Your vault stays encrypted',
-              style: TextStyle(color: colors.textSecondary),
-            ),
-            trailing: AppIcon('chevron_right', color: colors.textTertiary),
+          _SettingsRow(
+            icon: 'lock',
+            title: 'Change master password',
+            subtitle: 'Vault stays encrypted',
             onTap: () => context.push('/settings/change-master-password'),
           ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: AppIcon('lock', color: colors.primary),
-            title: const Text('Lock vault now'),
+          _SettingsRow(
+            icon: 'lock',
+            title: 'Lock vault now',
+            subtitle: 'Require master password to open',
+            showDivider: false,
             onTap: () {
               ref.read(vaultSessionProvider.notifier).lock();
               context.go('/unlock');
             },
           ),
           SizedBox(height: scale.lg),
-          PrimaryButton(
-            label: 'Log Out',
-            onPressed: () => _confirmSignOut(context, ref),
+          Center(
+            child: AppTextButton(
+              label: 'Log out',
+              destructive: true,
+              onPressed: () => _confirmSignOut(context, ref),
+            ),
           ),
         ],
       ),
@@ -290,58 +271,19 @@ class SettingsPage extends ConsumerWidget {
     WidgetRef ref,
     VaultAutoLockOption current,
   ) async {
-    final colors = context.colors;
-    final selected = await showModalBottomSheet<VaultAutoLockOption>(
+    final selected = await showAppOptionSheet<VaultAutoLockOption>(
       context: context,
-      showDragHandle: true,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                  child: Text(
-                    'Auto-lock vault',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: Scale.of(ctx).fontXl,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  child: Text(
-                    'Locks after inactivity. The vault still locks when the app goes to background.',
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: Scale.of(ctx).fontMd,
-                    ),
-                  ),
-                ),
-                ...VaultAutoLockOption.values.map(
-                  (option) => ListTile(
-                    title: Text(option.label),
-                    subtitle: Text(option.description),
-                    trailing: option == current
-                        ? AppIcon('check', color: colors.primary)
-                        : null,
-                    onTap: () => Navigator.pop(ctx, option),
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
+      title: 'Auto-lock vault',
+      message: 'Locks after inactivity, including while the app is in the background.',
+      selected: current,
+      options: [
+        for (final option in VaultAutoLockOption.values)
+          AppSheetOption(
+            value: option,
+            title: option.label,
+            subtitle: option.description,
           ),
-        );
-      },
+      ],
     );
     if (selected != null) {
       await ref.read(securityPreferenceProvider.notifier).setAutoLock(selected);
@@ -353,58 +295,19 @@ class SettingsPage extends ConsumerWidget {
     WidgetRef ref,
     RevealGraceOption current,
   ) async {
-    final colors = context.colors;
-    final selected = await showModalBottomSheet<RevealGraceOption>(
+    final selected = await showAppOptionSheet<RevealGraceOption>(
       context: context,
-      showDragHandle: true,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                  child: Text(
-                    'Re-auth for secrets',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: Scale.of(ctx).fontXl,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  child: Text(
-                    'Controls how often reveal and copy ask for fingerprint or master password.',
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: Scale.of(ctx).fontMd,
-                    ),
-                  ),
-                ),
-                ...RevealGraceOption.values.map(
-                  (option) => ListTile(
-                    title: Text(option.label),
-                    subtitle: Text(option.description),
-                    trailing: option == current
-                        ? AppIcon('check', color: colors.primary)
-                        : null,
-                    onTap: () => Navigator.pop(ctx, option),
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
+      title: 'Re-auth for secrets',
+      message: 'How often reveal and copy ask for fingerprint or master password.',
+      selected: current,
+      options: [
+        for (final option in RevealGraceOption.values)
+          AppSheetOption(
+            value: option,
+            title: option.label,
+            subtitle: option.description,
           ),
-        );
-      },
+      ],
     );
     if (selected != null) {
       await ref
@@ -418,58 +321,19 @@ class SettingsPage extends ConsumerWidget {
     WidgetRef ref,
     PasswordAgeThresholdOption current,
   ) async {
-    final colors = context.colors;
-    final selected = await showModalBottomSheet<PasswordAgeThresholdOption>(
+    final selected = await showAppOptionSheet<PasswordAgeThresholdOption>(
       context: context,
-      showDragHandle: true,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                  child: Text(
-                    'Password age threshold',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: Scale.of(ctx).fontXl,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  child: Text(
-                    'Used by the Health tab to flag passwords that have not been changed recently.',
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: Scale.of(ctx).fontMd,
-                    ),
-                  ),
-                ),
-                ...PasswordAgeThresholdOption.values.map(
-                  (option) => ListTile(
-                    title: Text(option.label),
-                    subtitle: Text(option.description),
-                    trailing: option == current
-                        ? AppIcon('check', color: colors.primary)
-                        : null,
-                    onTap: () => Navigator.pop(ctx, option),
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
+      title: 'Password age threshold',
+      message: 'Health flags passwords that have not been changed within this window.',
+      selected: current,
+      options: [
+        for (final option in PasswordAgeThresholdOption.values)
+          AppSheetOption(
+            value: option,
+            title: option.label,
+            subtitle: option.description,
           ),
-        );
-      },
+      ],
     );
     if (selected != null) {
       await ref
@@ -479,67 +343,80 @@ class SettingsPage extends ConsumerWidget {
   }
 
   Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
-    final colors = context.colors;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Log Out?'),
-        content: const Text(
-          'You will need your master password to unlock again.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Log Out', style: TextStyle(color: colors.danger)),
-          ),
-        ],
-      ),
+      title: 'Log out?',
+      message: 'You will need your master password to unlock again.',
+      confirmLabel: 'Log out',
+      tone: AppConfirmTone.destructive,
     );
-    if (confirmed != true || !context.mounted) return;
+    if (!confirmed || !context.mounted) return;
     await ref.read(vaultSessionProvider.notifier).logout();
     if (context.mounted) context.go('/login');
   }
 }
 
-class _SecurityTile extends StatelessWidget {
-  const _SecurityTile({
+/// List row matching Home / MFA: rose icon well on page background, hairline divider.
+class _SettingsRow extends StatelessWidget {
+  const _SettingsRow({
     required this.icon,
     required this.title,
-    required this.subtitle,
-    required this.onTap,
+    this.subtitle,
+    this.onTap,
+    this.trailing,
+    this.showDivider = true,
   });
 
   final String icon;
   final String title;
-  final String subtitle;
-  final VoidCallback onTap;
+  final String? subtitle;
+  final VoidCallback? onTap;
+  final Widget? trailing;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: AppIcon(icon, color: colors.primary),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontSize: Scale.of(context).fontLg,
-          fontWeight: FontWeight.w600,
+    final scale = Scale.of(context);
+
+    return Column(
+      children: [
+        ListTile(
+          onTap: onTap,
+          contentPadding: EdgeInsets.symmetric(vertical: scale.xs),
+          leading: Container(
+            width: scale.s(44),
+            height: scale.s(44),
+            decoration: BoxDecoration(
+              color: colors.primarySoft,
+              borderRadius: BorderRadius.circular(scale.radiusSm),
+            ),
+            child: Center(
+              child: AppIcon(icon, color: colors.primary),
+            ),
+          ),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontSize: scale.fontLg,
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+            ),
+          ),
+          subtitle: subtitle == null
+              ? null
+              : Text(
+                  subtitle!,
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: scale.fontSm,
+                  ),
+                ),
+          trailing: trailing ??
+              AppIcon('chevron_right', color: colors.textTertiary),
         ),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: TextStyle(
-          color: colors.textSecondary,
-          fontSize: Scale.of(context).fontSm,
-        ),
-      ),
-      trailing: AppIcon('chevron_right', color: colors.textTertiary),
-      onTap: onTap,
+        if (showDivider) Divider(height: 1, color: colors.border),
+      ],
     );
   }
 }
@@ -570,7 +447,7 @@ class _ThemeOption extends StatelessWidget {
         borderRadius: BorderRadius.circular(scale.radiusMd),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: EdgeInsets.symmetric(vertical: scale.md, horizontal: scale.sm),
+          padding: EdgeInsets.symmetric(vertical: scale.sm, horizontal: scale.xs),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(scale.radiusMd),
             border: Border.all(

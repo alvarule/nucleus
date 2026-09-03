@@ -1,6 +1,7 @@
 /// App Login MFA: multi-step enable wizard and manage/disable flows.
-import 'dart:io';
+import 'dart:convert';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,9 +14,32 @@ import 'package:nucleus/features/unlock/presentation/providers/vault_session_pro
 import 'package:nucleus/shared/widgets/app_icon.dart';
 import 'package:nucleus/shared/widgets/mfa_otp_code_field.dart';
 import 'package:nucleus/shared/widgets/vault_text_field.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:nucleus/features/mfa/domain/login_mfa_validation.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+
+/// System save picker (same as attachment download), not the app documents dir.
+Future<void> _saveBackupCodesWithPicker(
+  BuildContext context,
+  List<String> codes,
+) async {
+  final body = 'Nucleus App Login MFA backup codes\n\n${codes.join('\n')}\n';
+  try {
+    final uri = await FilePicker.saveFile(
+      fileName: 'nucleus-login-backup-codes.txt',
+      bytes: Uint8List.fromList(utf8.encode(body)),
+      mimeType: 'text/plain',
+    );
+    if (uri == null || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('File saved')),
+    );
+  } catch (_) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Could not save file')),
+    );
+  }
+}
 
 class _MfaSectionHeader extends StatelessWidget {
   const _MfaSectionHeader({required this.title, this.subtitle});
@@ -488,18 +512,7 @@ class _AppLoginMfaSetupWizardPageState
   }
 
   Future<void> _saveCodesFile(List<String> codes) async {
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File(
-      '${dir.path}/nucleus-login-backup-codes-${DateTime.now().millisecondsSinceEpoch}.txt',
-    );
-    await file.writeAsString(
-      'Nucleus App Login MFA backup codes\n\n${codes.join('\n')}\n',
-    );
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saved to ${file.path}')),
-      );
-    }
+    await _saveBackupCodesWithPicker(context, codes);
   }
 }
 
@@ -538,18 +551,7 @@ class _AppLoginMfaManagePageState extends ConsumerState<AppLoginMfaManagePage> {
   Future<void> _saveRegeneratedCodesFile() async {
     final codes = _regeneratedCodes;
     if (codes == null) return;
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File(
-      '${dir.path}/nucleus-login-backup-codes-${DateTime.now().millisecondsSinceEpoch}.txt',
-    );
-    await file.writeAsString(
-      'Nucleus App Login MFA backup codes\n\n${codes.join('\n')}\n',
-    );
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saved to ${file.path}')),
-      );
-    }
+    await _saveBackupCodesWithPicker(context, codes);
   }
 
   @override

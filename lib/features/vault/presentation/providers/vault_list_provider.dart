@@ -47,7 +47,6 @@ class VaultListState {
         items: visible,
         folders: folders,
         sort: sort,
-        includeEmptyFolders: query.trim().isEmpty,
       );
 
   VaultListState copyWith({

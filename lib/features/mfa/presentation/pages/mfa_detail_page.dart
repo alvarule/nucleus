@@ -15,6 +15,8 @@ import 'package:nucleus/features/mfa/presentation/providers/mfa_list_provider.da
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
 import 'package:nucleus/shared/widgets/vault_loader.dart';
+import 'package:nucleus/shared/widgets/app_dialog.dart';
+import 'package:nucleus/shared/widgets/app_buttons.dart';
 import 'package:nucleus/shared/widgets/vault_text_field.dart';
 
 class MfaDetailPage extends ConsumerStatefulWidget {
@@ -90,42 +92,13 @@ class _MfaDetailPageState extends ConsumerState<MfaDetailPage> {
   }
 
   Future<bool> _confirmDelete(MfaEntry entry) async {
-    final colors = context.colors;
-    final scale = Scale.of(context);
-    final confirmed = await showDialog<bool>(
+    return showAppConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          'Delete authenticator?',
-          style: TextStyle(fontSize: scale.fontXl, fontWeight: FontWeight.w700),
-        ),
-        content: Text(
-          'Remove "${entry.displayTitle}"? This cannot be undone.',
-          style: TextStyle(
-            color: colors.textSecondary,
-            fontSize: scale.fontMd,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: TextStyle(fontSize: scale.fontMd)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(
-              'Delete',
-              style: TextStyle(
-                color: colors.danger,
-                fontSize: scale.fontMd,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
+      title: 'Delete authenticator?',
+      message: 'Remove "${entry.displayTitle}"? This cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: AppConfirmTone.destructive,
     );
-    return confirmed == true;
   }
 
   Future<void> _deleteEntry(MfaEntry entry) async {
@@ -249,13 +222,11 @@ class _MfaDetailPageState extends ConsumerState<MfaDetailPage> {
                         SizedBox(height: scale.sm),
                         Align(
                           alignment: Alignment.centerRight,
-                          child: FilledButton.tonal(
+                          child: AppTextButton(
+                            label: 'Save account',
                             onPressed: _savingAccount
                                 ? null
                                 : () => _saveAccount(entry),
-                            child: _savingAccount
-                                ? VaultLoader(size: scale.s(28))
-                                : const Text('Save account'),
                           ),
                         ),
                       ],
@@ -326,13 +297,10 @@ class _MfaDetailPageState extends ConsumerState<MfaDetailPage> {
                   ),
                 ),
               ),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _copyCode,
-                  icon: AppIcon('copy', color: colors.onPrimary, size: scale.iconSm),
-                  label: const Text('Copy code'),
-                ),
+              PrimaryButton(
+                label: 'Copy code',
+                icon: 'copy',
+                onPressed: _copyCode,
               ),
               SizedBox(height: scale.lg),
             ],

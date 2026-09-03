@@ -20,6 +20,7 @@ class ProfilePage extends ConsumerStatefulWidget {
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   late TextEditingController _name;
+  late TextEditingController _email;
   final _nameFocus = FocusNode();
   bool _saving = false;
 
@@ -28,11 +29,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     super.initState();
     final profile = ref.read(vaultSessionProvider).profile;
     _name = TextEditingController(text: profile?.name ?? '');
+    _email = TextEditingController(text: profile?.email ?? '');
   }
 
   @override
   void dispose() {
     _name.dispose();
+    _email.dispose();
     _nameFocus.dispose();
     super.dispose();
   }
@@ -54,24 +57,50 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           onPressed: () => Navigator.pop(context),
           icon: AppIcon('back', color: colors.textPrimary),
         ),
+        actions: [
+          TextButton(
+            onPressed: _saving ? null : () => _save(profile),
+            child: _saving
+                ? SizedBox(
+                    width: scale.s(20),
+                    height: scale.s(20),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: colors.primary,
+                    ),
+                  )
+                : Text(
+                    'Save',
+                    style: TextStyle(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: scale.fontMd,
+                    ),
+                  ),
+          ),
+        ],
       ),
       body: ListView(
-        padding: EdgeInsets.all(scale.lg),
+        padding: EdgeInsets.fromLTRB(scale.md, scale.md, scale.md, scale.lg),
         children: [
           Center(
-            child: Hero(tag: 'profile_avatar', child: AvatarWidget(profile: profile, size: scale.s(96))),
+            child: Hero(
+              tag: 'profile_avatar',
+              child: AvatarWidget(profile: profile, size: scale.s(88)),
+            ),
           ),
           SizedBox(height: scale.md),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              TextButton(
-                onPressed: () => _pickPreset(profile),
-                child: Text('Choose avatar', style: TextStyle(color: colors.primary)),
+              _AvatarAction(
+                label: 'Choose avatar',
+                onTap: () => _pickPreset(profile),
               ),
-              TextButton(
-                onPressed: () => _uploadCustom(profile),
-                child: Text('Upload photo', style: TextStyle(color: colors.primary)),
+              SizedBox(width: scale.sm),
+              _AvatarAction(
+                label: 'Upload photo',
+                onTap: () => _uploadCustom(profile),
               ),
             ],
           ),
@@ -86,17 +115,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ),
           SizedBox(height: scale.md),
           VaultTextField(
-            controller: TextEditingController(text: profile.email),
+            controller: _email,
             label: 'Email',
             prefixIcon: 'mail',
-            // Auth identity; changing email is not implemented.
             enabled: false,
-          ),
-          SizedBox(height: scale.lg),
-          PrimaryButton(
-            label: 'Save profile',
-            loading: _saving,
-            onPressed: () => _save(profile),
           ),
         ],
       ),
@@ -122,18 +144,22 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   /// Presets are bundled as `assets/avatars/1.png` … `60.png`.
   Future<void> _pickPreset(UserProfile profile) async {
     final colors = context.colors;
+    final scale = Scale.of(context);
     final selected = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: colors.surface,
       isScrollControlled: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(scale.radiusLg)),
+      ),
       builder: (ctx) {
         return SizedBox(
-          height: MediaQuery.sizeOf(ctx).height * 0.75,
+          height: MediaQuery.sizeOf(ctx).height * 0.72,
           child: SafeArea(
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  padding: EdgeInsets.fromLTRB(scale.md, scale.sm, scale.md, scale.sm),
                   child: Row(
                     children: [
                       Expanded(
@@ -141,7 +167,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           'Choose avatar',
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
-                            fontSize: 18,
+                            fontSize: scale.fontLg,
                             color: colors.textPrimary,
                           ),
                         ),
@@ -155,12 +181,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 ),
                 Expanded(
                   child: GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
+                    padding: EdgeInsets.fromLTRB(scale.md, 0, scale.md, scale.md),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 4,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
+                      mainAxisSpacing: scale.sm,
+                      crossAxisSpacing: scale.sm,
                     ),
                     itemCount: 60,
                     itemBuilder: (_, i) {
@@ -248,5 +273,46 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+}
+
+/// Compact outlined action matching Settings appearance chips (unselected).
+class _AvatarAction extends StatelessWidget {
+  const _AvatarAction({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = Scale.of(context);
+    final colors = context.colors;
+
+    return Material(
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(scale.radiusMd),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(scale.radiusMd),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: scale.md,
+            vertical: scale.sm,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(scale.radiusMd),
+            border: Border.all(color: colors.border),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: colors.primary,
+              fontWeight: FontWeight.w600,
+              fontSize: scale.fontSm,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

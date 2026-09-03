@@ -15,12 +15,15 @@ import 'package:nucleus/features/health/presentation/widgets/health_badge.dart';
 import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
 import 'package:nucleus/features/vault/domain/password_field_helpers.dart';
 import 'package:nucleus/features/vault/presentation/providers/vault_list_provider.dart';
-import 'package:nucleus/shared/widgets/attachments_section.dart';
+import 'package:nucleus/shared/widgets/app_dialog.dart';
+import 'package:nucleus/shared/widgets/app_buttons.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
 import 'package:nucleus/shared/widgets/masked_secret_field.dart';
 import 'package:nucleus/shared/widgets/sensitive_access.dart';
 import 'package:nucleus/shared/widgets/vault_loader.dart';
-import 'package:nucleus/shared/widgets/vault_text_field.dart';
+import 'package:nucleus/shared/widgets/vault_sync_status.dart';
+import 'package:nucleus/shared/widgets/attachments_section.dart';
+import 'package:nucleus/shared/widgets/vault_text_field.dart' show titleCaseLabel;
 
 class VaultItemDetailPage extends ConsumerStatefulWidget {
   const VaultItemDetailPage({super.key, required this.itemId});
@@ -152,14 +155,7 @@ class _VaultItemDetailPageState extends ConsumerState<VaultItemDetailPage> {
             },
             icon: AppIcon('back', color: colors.textPrimary),
           ),
-          title: Text(
-            item.label,
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: scale.fontXl,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          title: Text(item.label),
           actions: [
             IconButton(
               tooltip: 'Edit',
@@ -172,147 +168,103 @@ class _VaultItemDetailPageState extends ConsumerState<VaultItemDetailPage> {
             IconButton(
               tooltip: 'Delete',
               onPressed: () async {
-                final confirm = await showDialog<bool>(
+                final confirm = await showAppConfirmDialog(
                   context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: Text(
-                      'Delete item?',
-                      style: TextStyle(fontSize: scale.fontXl),
-                    ),
-                    content: Text(
-                      'This cannot be undone.',
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: scale.fontMd,
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancel'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: Text(
-                          'Delete',
-                          style: TextStyle(color: colors.danger),
-                        ),
-                      ),
-                    ],
-                  ),
+                  title: 'Delete item?',
+                  message: 'Delete "${item.label}"? This cannot be undone.',
+                  confirmLabel: 'Delete',
+                  tone: AppConfirmTone.destructive,
                 );
-                if (confirm == true) {
-                  await ref.read(vaultListProvider.notifier).delete(item.id);
-                  if (context.mounted) context.go('/home');
-                }
+                if (!confirm || !context.mounted) return;
+                await ref.read(vaultListProvider.notifier).delete(item.id);
+                if (context.mounted) context.go('/home');
               },
               icon: AppIcon('delete', color: colors.danger),
             ),
           ],
         ),
         body: ListView(
-          padding: EdgeInsets.all(scale.lg),
+          padding: EdgeInsets.fromLTRB(scale.md, scale.sm, scale.md, scale.lg),
           children: [
-            if (healthSnapshot != null) ...[
-              Row(
-                children: [
-                  HealthBadge(snapshot: healthSnapshot),
-                  SizedBox(width: scale.sm),
-                  Expanded(
-                    child: Text(
-                      _healthSummary(healthSnapshot),
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: scale.fontSm,
-                      ),
-                    ),
-                  ),
-                  if (healthSnapshot.needsFix)
-                    TextButton(
-                      onPressed: () =>
-                          context.push('/generator/fix', extra: item),
-                      child: Text(
-                        'Fix now',
-                        style: TextStyle(
-                          color: colors.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              SizedBox(height: scale.md),
-            ],
-            ...item.fields.entries
-                .where((e) =>
-                    e.key != passwordChangedAtKey && '${e.value}'.isNotEmpty)
-                .map((e) {
-              final key = e.key;
-              final value = '${e.value}';
-              final label = titleCaseLabel(key);
-              if (_sensitiveKeys.contains(key)) {
-                return Padding(
-                  padding: EdgeInsets.only(bottom: scale.md),
-                  child: MaskedSecretField(
-                    label: label,
-                    value: value,
-                    revealed: _revealed.contains(key),
-                    onToggle: () => _toggleReveal(key),
-                    onCopy: () => _copySecret(key, value),
-                  ),
-                );
-              }
-              return Padding(
-                padding: EdgeInsets.only(bottom: scale.md),
-                child: Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.all(scale.md),
+            Row(
+              children: [
+                Container(
+                  width: scale.s(40),
+                  height: scale.s(40),
                   decoration: BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: BorderRadius.circular(scale.radiusMd),
-                    border: Border.all(color: colors.border),
+                    color: colors.primarySoft,
+                    borderRadius: BorderRadius.circular(scale.radiusSm),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        label,
+                  child: Center(
+                    child: AppIcon(item.type.icon, color: colors.primary),
+                  ),
+                ),
+                SizedBox(width: scale.md),
+                Expanded(
+                  child: Text(
+                    item.type.label,
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: scale.fontSm,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                VaultSyncStatusChip(syncMode: item.syncMode, compact: true),
+              ],
+            ),
+            if (healthSnapshot != null) ...[
+              SizedBox(height: scale.md),
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: scale.md,
+                  vertical: scale.sm,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(scale.radiusSm),
+                  border: Border.all(color: colors.border),
+                ),
+                child: Row(
+                  children: [
+                    HealthBadge(snapshot: healthSnapshot),
+                    SizedBox(width: scale.sm),
+                    Expanded(
+                      child: Text(
+                        _healthSummary(healthSnapshot),
                         style: TextStyle(
                           color: colors.textSecondary,
                           fontSize: scale.fontSm,
-                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      SizedBox(height: scale.xs),
-                      Text(
-                        value,
-                        style: TextStyle(
-                          color: colors.textPrimary,
-                          fontSize: scale.fontLg,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    ),
+                    if (healthSnapshot.needsFix)
+                      AppTextButton(
+                        label: 'Fix now',
+                        onPressed: () =>
+                            context.push('/generator/fix', extra: item),
                       ),
-                    ],
-                  ),
+                  ],
                 ),
-              );
-            }),
-            SizedBox(height: scale.lg),
+              ),
+            ],
+            SizedBox(height: scale.md),
+            _DetailFieldsCard(
+              item: item,
+              sensitiveKeys: _sensitiveKeys,
+              revealed: _revealed,
+              onToggleReveal: _toggleReveal,
+              onCopySecret: _copySecret,
+            ),
+            SizedBox(height: scale.md),
             AttachmentsSection(
               vaultItemId: item.id,
               syncMode: item.syncMode,
               readOnly: true,
             ),
-            SizedBox(height: scale.md),
+            SizedBox(height: scale.sm),
             Text(
-              'Created ${dateFormat.format(item.createdAt)}',
-              style: TextStyle(
-                color: colors.textTertiary,
-                fontSize: scale.fontSm,
-              ),
-            ),
-            Text(
-              'Updated ${dateFormat.format(item.updatedAt)}',
+              'Created ${dateFormat.format(item.createdAt)} · Updated ${dateFormat.format(item.updatedAt)}',
               style: TextStyle(
                 color: colors.textTertiary,
                 fontSize: scale.fontSm,
@@ -329,5 +281,118 @@ class _VaultItemDetailPageState extends ConsumerState<VaultItemDetailPage> {
     if (snapshot.isReused) parts.add('reused');
     if (snapshot.isOld) parts.add('old');
     return parts.join(' · ');
+  }
+}
+
+/// Groups non-sensitive fields in one bordered card; sensitive fields stay separate.
+class _DetailFieldsCard extends StatelessWidget {
+  const _DetailFieldsCard({
+    required this.item,
+    required this.sensitiveKeys,
+    required this.revealed,
+    required this.onToggleReveal,
+    required this.onCopySecret,
+  });
+
+  final VaultItem item;
+  final Set<String> sensitiveKeys;
+  final Set<String> revealed;
+  final Future<void> Function(String key) onToggleReveal;
+  final Future<void> Function(String key, String value) onCopySecret;
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = Scale.of(context);
+    final colors = context.colors;
+
+    final entries = item.fields.entries
+        .where((e) => e.key != passwordChangedAtKey && '${e.value}'.isNotEmpty)
+        .toList();
+
+    final sensitive = <Widget>[];
+    final plain = <MapEntry<String, String>>[];
+
+    for (final e in entries) {
+      final value = '${e.value}';
+      if (sensitiveKeys.contains(e.key)) {
+        sensitive.add(
+          Padding(
+            padding: EdgeInsets.only(bottom: scale.sm),
+            child: MaskedSecretField(
+              label: titleCaseLabel(e.key),
+              value: value,
+              revealed: revealed.contains(e.key),
+              onToggle: () => onToggleReveal(e.key),
+              onCopy: () => onCopySecret(e.key, value),
+            ),
+          ),
+        );
+      } else {
+        plain.add(MapEntry(e.key, value));
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (plain.isNotEmpty)
+          Material(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(scale.radiusMd),
+            clipBehavior: Clip.antiAlias,
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: colors.border),
+                borderRadius: BorderRadius.circular(scale.radiusMd),
+              ),
+              child: Column(
+                children: [
+                  for (var i = 0; i < plain.length; i++) ...[
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: scale.md,
+                        vertical: scale.sm + 2,
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: scale.s(108),
+                            child: Text(
+                              titleCaseLabel(plain[i].key),
+                              style: TextStyle(
+                                color: colors.textSecondary,
+                                fontSize: scale.fontSm,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              plain[i].value,
+                              style: TextStyle(
+                                color: colors.textPrimary,
+                                fontSize: scale.fontMd,
+                                fontWeight: FontWeight.w600,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (i < plain.length - 1)
+                      Divider(height: 1, color: colors.border),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        if (sensitive.isNotEmpty) ...[
+          if (plain.isNotEmpty) SizedBox(height: scale.sm),
+          ...sensitive,
+        ],
+      ],
+    );
   }
 }

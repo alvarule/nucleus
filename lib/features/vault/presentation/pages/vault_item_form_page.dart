@@ -15,6 +15,7 @@ import 'package:nucleus/features/attachments/domain/entities/pending_attachment.
 import 'package:nucleus/features/vault/domain/entities/vault_sync_mode.dart';
 import 'package:nucleus/features/vault/presentation/widgets/folder_sheets.dart';
 import 'package:nucleus/shared/widgets/attachments_section.dart';
+import 'package:nucleus/shared/widgets/vault_sync_status.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
 import 'package:nucleus/shared/widgets/sensitive_access.dart';
 import 'package:nucleus/shared/widgets/vault_text_field.dart';
@@ -151,6 +152,8 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
     final isEdit = widget.existing != null;
     final keys = _controllers.keys.toList();
 
+    final shortTitle = isEdit ? 'Edit' : 'New';
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -163,21 +166,75 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
           },
           icon: AppIcon('back', color: colors.textPrimary),
         ),
-        title: Text(
-          isEdit ? 'Edit ${widget.type.label}' : 'New ${widget.type.label}',
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: scale.fontXl,
-            fontWeight: FontWeight.w700,
+        title: Text(shortTitle),
+        actions: [
+          TextButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? SizedBox(
+                    width: scale.s(20),
+                    height: scale.s(20),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: colors.primary,
+                    ),
+                  )
+                : Text(
+                    'Save',
+                    style: TextStyle(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: scale.fontMd,
+                    ),
+                  ),
           ),
-        ),
+        ],
       ),
       body: SafeArea(
         child: Form(
           key: _formKey,
           child: ListView(
-            padding: EdgeInsets.all(scale.lg),
+            padding: EdgeInsets.fromLTRB(scale.md, scale.sm, scale.md, scale.lg),
             children: [
+              Row(
+                children: [
+                  Container(
+                    width: scale.s(40),
+                    height: scale.s(40),
+                    decoration: BoxDecoration(
+                      color: colors.primarySoft,
+                      borderRadius: BorderRadius.circular(scale.radiusSm),
+                    ),
+                    child: Center(
+                      child: AppIcon(widget.type.icon, color: colors.primary),
+                    ),
+                  ),
+                  SizedBox(width: scale.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.type.label,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: scale.fontMd,
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          isEdit ? 'Update fields and save' : 'Fill in the details below',
+                          style: TextStyle(
+                            fontSize: scale.fontSm,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: scale.sm),
               _FolderField(
                 folderId: _folderId,
                 folders: ref.watch(vaultListProvider).folders,
@@ -193,7 +250,7 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
                   setState(() => _folderId = picked.isEmpty ? null : picked);
                 },
               ),
-              SizedBox(height: scale.md),
+              SizedBox(height: scale.sm),
               ...keys.asMap().entries.map((entry) {
                 final index = entry.key;
                 final fieldKey = entry.value;
@@ -204,7 +261,7 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
                 final nextKey = index < keys.length - 1 ? keys[index + 1] : null;
 
                 return Padding(
-                  padding: EdgeInsets.only(bottom: scale.md),
+                  padding: EdgeInsets.only(bottom: scale.sm),
                   child: VaultTextField(
                     controller: _controllers[fieldKey]!,
                     focusNode: _focusNodes[fieldKey],
@@ -251,6 +308,7 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
                   style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: scale.fontSm,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 SizedBox(height: scale.sm),
@@ -264,7 +322,7 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
                   ],
                   onChanged: (v) => setState(() => _accountType = v),
                 ),
-                SizedBox(height: scale.md),
+                SizedBox(height: scale.sm),
               ],
               if (widget.type == VaultItemType.atmCard) ...[
                 Text(
@@ -272,6 +330,7 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
                   style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: scale.fontSm,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 SizedBox(height: scale.sm),
@@ -283,18 +342,15 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
                   ],
                   onChanged: (v) => setState(() => _cardType = v),
                 ),
-                SizedBox(height: scale.md),
+                SizedBox(height: scale.sm),
               ],
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Sync to Cloud'),
-                subtitle: Text(
-                  _syncSubtitle(),
-                  style: TextStyle(color: colors.textSecondary),
-                ),
-                value: _syncMode == VaultSyncMode.cloud,
-                activeThumbColor: colors.primary,
-                onChanged: _saving ? null : _onSyncToggle,
+              VaultSyncModeSwitch(
+                syncToCloud: _syncMode == VaultSyncMode.cloud,
+                subtitle: _syncSubtitle(),
+                enabled: !_saving,
+                onChanged: _saving
+                    ? null
+                    : (v) => _onSyncToggle(v),
               ),
               SizedBox(height: scale.md),
               AttachmentsSection(
@@ -305,12 +361,6 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
                     setState(() => _pendingAttachments = files),
                 onAttachmentIdsChanged: (ids) =>
                     _uploadedAttachmentCount = ids.length,
-              ),
-              SizedBox(height: scale.md),
-              PrimaryButton(
-                label: isEdit ? 'Save changes' : 'Save to vault',
-                loading: _saving,
-                onPressed: _save,
               ),
             ],
           ),
@@ -458,8 +508,8 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
     return 'Stored only on this device';
   }
 
-  void _onSyncToggle(bool? syncToCloud) {
-    if (syncToCloud == null || _saving) return;
+  void _onSyncToggle(bool syncToCloud) {
+    if (_saving) return;
     setState(() {
       _syncMode =
           syncToCloud ? VaultSyncMode.cloud : VaultSyncMode.local;

@@ -6,6 +6,8 @@ import 'package:nucleus/core/responsive/scale.dart';
 import 'package:nucleus/core/theme/app_colors.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
 
+export 'package:nucleus/shared/widgets/app_buttons.dart' show PrimaryButton;
+
 class VaultTextField extends StatefulWidget {
   const VaultTextField({
     super.key,
@@ -174,37 +176,6 @@ class _VaultTextFieldState extends State<VaultTextField> {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Full-width primary CTA with an inline loading spinner.
-class PrimaryButton extends StatelessWidget {
-  const PrimaryButton({
-    super.key,
-    required this.label,
-    required this.onPressed,
-    this.loading = false,
-  });
-
-  final String label;
-  final VoidCallback? onPressed;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) {
-    return ElevatedButton(
-      onPressed: loading ? null : onPressed,
-      child: loading
-          ? SizedBox(
-              height: Scale.of(context).s(22),
-              width: Scale.of(context).s(22),
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: context.colors.onPrimary,
-              ),
-            )
-          : Text(label),
     );
   }
 }

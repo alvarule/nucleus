@@ -26,7 +26,7 @@ lib/features/settings/ - Theme, auto-lock, reveal grace, change master password
 lib/features/generator/ - Local password generator
 lib/features/attachments/ - Encrypted file chunks in vault-files bucket
 lib/features/mfa/ - Site authenticator + login TOTP (KEK-wrapped)
-lib/shared/widgets/ - Shell, icons, fields, loader, Home skeleton, sensitive-access gate
+lib/shared/widgets/ - Shell, icons, fields, dialogs, option sheets, buttons, ui_list_group, sync chips, loader, sensitive-access gate
 assets/animations/ - Brand Lottie used by VaultLoader
 assets/icons/ - SVG icon set referenced by AppIcon
 assets/avatars/ - Preset avatar path used by Profile (see pubspec)
@@ -88,7 +88,7 @@ pubspec.yaml - Dependencies and asset declarations
   * `lib/features/vault/presentation/widgets/folder_sheets.dart`
   * `lib/features/vault/domain/password_field_helpers.dart`
   * `lib/shared/widgets/vault_home_skeleton.dart`
-* **Key decisions:** AES-GCM additional authenticated data is `id:itemType` so ciphertext cannot be moved between rows. Folder names are plaintext metadata. Delete folder uses ON DELETE SET NULL (items become Uncategorized). New items default to Uncategorized. `VaultListNotifier` listens to vault session: clears decrypted rows on lock, calls `refresh()` when the vault unlocks; `refresh()` no-ops while locked without wiping cached list state. Home uses `CustomScrollView` with `SliverStickyHeader` per folder (`flutter_sticky_header`) so headers stick and push in one scroll column, plus per-item `SliverList` children (jump-to-folder via header keys). `showFolderPickerSheet` uses `FolderPickerSelection.destination` for bulk move (no highlight) vs `.current` on the item form. Long-press on items enters multi-select; Move uses the folder picker and bulk-updates `folder_id`. Home sort is device-local SharedPreferences. Initial Home load uses a full-page shimmer (`VaultHomeSkeleton`); pull-to-refresh does not. Health badges on Home hide when `primaryFlag == fine`. Edit route `/vault/edit/:id` requires `extra` as a `VaultItem` or a map with `item` + optional `prefill`. After save, the app `go`s to `/home` then `push`es detail. Password items store `password_changed_at` in the encrypted payload.
+* **Key decisions:** AES-GCM additional authenticated data is `id:itemType` so ciphertext cannot be moved between rows. Folder names are plaintext metadata. Delete folder uses ON DELETE SET NULL (items become Uncategorized). New items default to Uncategorized. `VaultListNotifier` listens to vault session: clears decrypted rows on lock, calls `refresh()` when the vault unlocks; `refresh()` no-ops while locked without wiping cached list state. Home uses `CustomScrollView` with `SliverStickyHeader` per folder (`flutter_sticky_header`) so headers stick and push in one scroll column, plus per-item `SliverList` children. Folder headers are rounded `surface` cards with a primary left rail, larger folder icon and title, and a muted “N items” + chevron; sticky push and jump-to-folder are unchanged. Jump-to-folder keys a zero-height sentinel before each sticky section and scrolls by summing preceding slivers’ `scrollExtent` (not `getOffsetToReveal`, which subtracts sticky `maxScrollObstructionExtent` and undershoots when jumping down the list). Home omits folder sections with zero visible items (All and type chips); move/form pickers still list every folder. Search and type chips sit in an opaque `Material` above a clipped list so tiles cannot paint through the filters. `showFolderPickerSheet` uses `FolderPickerSelection.destination` for bulk move (no highlight) vs `.current` on the item form. Long-press on items enters multi-select; the app bar swaps to close + count + compact Move (avoids a second bar stacked on the shell tab bar). Move uses the folder picker and bulk-updates `folder_id`. Home sort is device-local SharedPreferences; the picker is `showAppOptionSheet` (rose selected rows, icons, same padding as Settings). Initial Home load uses a full-page shimmer (`VaultHomeSkeleton`); pull-to-refresh does not. Health badges on Home hide when `primaryFlag == fine`. Edit route `/vault/edit/:id` requires `extra` as a `VaultItem` or a map with `item` + optional `prefill`. After save, the app `go`s to `/home` then `push`es detail. Password items store `password_changed_at` in the encrypted payload. The add-item sheet is scroll-controlled with taller type tiles so the 2-column grid does not overflow.
 
 ### Offline connectivity
 
@@ -164,7 +164,7 @@ pubspec.yaml - Dependencies and asset declarations
   * `lib/features/attachments/**`
   * `lib/shared/widgets/attachments_section.dart`
   * `supabase/migrations/003_attachments.sql`
-* **Key decisions:** Plaintext > 5 MB splits into ~4 MB chunks before encrypt. Local-only vault items cannot upload attachments until synced to cloud. **Open** decrypts to a temp file and uses a platform channel (`ACTION_VIEW` + chooser on Android, document interaction on iOS), not the share sheet.
+* **Key decisions:** Plaintext > 5 MB splits into ~4 MB chunks before encrypt. Local-only vault items cannot upload attachments until synced to cloud. **Open** decrypts to a temp file and uses a platform channel (`ACTION_VIEW` + chooser on Android, document interaction on iOS), not the share sheet. Form and detail use the same labeled + `UiGroupedCard` chrome as folder/sync/fields: file rows with rose icon tiles, tap to open, compact download; **Add files** is a nav row in the card (not a header plus).
 
 ### MFA (site authenticator + App Login MFA)
 
@@ -174,7 +174,7 @@ pubspec.yaml - Dependencies and asset declarations
   * `lib/features/settings/presentation/pages/app_login_mfa_pages.dart`
   * `lib/features/auth/presentation/pages/login_totp_page.dart`
   * `supabase/migrations/005_mfa.sql`, `006_login_mfa_backup.sql`
-* **Key decisions:** Site MFA uses vault DEK; App Login MFA uses KEK only. Backup codes stored as SHA-256 hashes; shown once at setup/regenerate (not re-viewable). Incomplete sign-in MFA persists only for the current process (in-memory password + store flag); after restart, auth is reset and user signs in from email/password again. Unlock and biometrics refuse while sign-in MFA is pending in-session. Login TOTP verification spans submit→verify time steps plus ±2. Account recovery without authenticator and backup codes is an acknowledged ZK gap (no email reset).
+* **Key decisions:** Site MFA uses vault DEK; App Login MFA uses KEK only. Backup codes stored as SHA-256 hashes; shown once at setup/regenerate (not re-viewable). **Save file** uses `FilePicker.saveFile` (user-chosen location), same as attachment download. Incomplete sign-in MFA persists only for the current process (in-memory password + store flag); after restart, auth is reset and user signs in from email/password again. Unlock and biometrics refuse while sign-in MFA is pending in-session. Login TOTP verification spans submit→verify time steps plus ±2. Account recovery without authenticator and backup codes is an acknowledged ZK gap (no email reset).
 
 ### Theming, shell, and platform hardening
 

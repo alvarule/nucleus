@@ -181,4 +181,40 @@ void main() {
     expect(sections.first.items.map((i) => i.label).toList(), ['Alpha', 'Zebra']);
     expect(sections.last.items.single.label, 'Loose');
   });
+
+  test('folder sections omit folders with no items', () {
+    final now = DateTime.now();
+    final work = VaultFolder(
+      id: 'f1',
+      userId: 'u',
+      name: 'Work',
+      sortOrder: 0,
+      createdAt: now,
+      updatedAt: now,
+    );
+    final empty = VaultFolder(
+      id: 'f2',
+      userId: 'u',
+      name: 'Empty',
+      sortOrder: 1,
+      createdAt: now,
+      updatedAt: now,
+    );
+    final sections = buildFolderSections(
+      items: [
+        VaultItem(
+          id: '1',
+          userId: 'u',
+          type: VaultItemType.note,
+          fields: {'label': 'Alpha'},
+          createdAt: now,
+          updatedAt: now,
+          folderId: 'f1',
+        ),
+      ],
+      folders: [work, empty],
+      sort: VaultSort.nameAsc,
+    );
+    expect(sections.map((s) => s.title).toList(), ['Work']);
+  });
 }

@@ -10,12 +10,19 @@ enum VaultSort {
 
 extension VaultSortX on VaultSort {
   String get label => switch (this) {
-        VaultSort.nameAsc => 'Name A → Z',
-        VaultSort.nameDesc => 'Name Z → A',
-        VaultSort.updatedDesc => 'Recently updated',
-        VaultSort.updatedAsc => 'Oldest updated',
-        VaultSort.createdDesc => 'Recently created',
-        VaultSort.createdAsc => 'Oldest created',
+        VaultSort.nameAsc => 'Name · A → Z',
+        VaultSort.nameDesc => 'Name · Z → A',
+        VaultSort.updatedDesc => 'Updated · newest first',
+        VaultSort.updatedAsc => 'Updated · oldest first',
+        VaultSort.createdDesc => 'Created · newest first',
+        VaultSort.createdAsc => 'Created · oldest first',
+      };
+
+  /// Icon for the sort picker; name vs recency vs created.
+  String get icon => switch (this) {
+        VaultSort.nameAsc || VaultSort.nameDesc => 'sort',
+        VaultSort.updatedDesc || VaultSort.updatedAsc => 'timer',
+        VaultSort.createdDesc || VaultSort.createdAsc => 'plus',
       };
 
   static VaultSort fromName(String? name) {

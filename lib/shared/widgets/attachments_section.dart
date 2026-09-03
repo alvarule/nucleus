@@ -15,6 +15,7 @@ import 'package:nucleus/features/unlock/presentation/providers/vault_session_pro
 import 'package:nucleus/features/vault/domain/entities/vault_sync_mode.dart';
 import 'package:nucleus/core/platform/open_local_file.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
+import 'package:nucleus/shared/widgets/ui_list_group.dart';
 import 'package:mime/mime.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -242,151 +243,226 @@ class _AttachmentsSectionState extends ConsumerState<AttachmentsSection> {
     final colors = context.colors;
     final canAdd = !widget.readOnly && widget.syncMode == VaultSyncMode.cloud;
     final showPending = !widget.readOnly && widget.vaultItemId == null;
+    final pending = showPending ? widget.pendingFiles : const <PendingAttachment>[];
+    final hasFiles = pending.isNotEmpty || _attachments.isNotEmpty;
+
+    final rows = <Widget>[
+      if (_loading)
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: scale.md),
+          child: Center(
+            child: SizedBox(
+              width: scale.s(22),
+              height: scale.s(22),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.primary,
+              ),
+            ),
+          ),
+        )
+      else ...[
+        for (final entry in pending.asMap().entries)
+          _FileRow(
+            title: entry.value.filename,
+            subtitle:
+                '${_formatKb(entry.value.bytes.length)} · pending upload',
+            onRemove: widget.readOnly ? null : () => _removePending(entry.key),
+          ),
+        for (final a in _attachments)
+          _FileRow(
+            title: a.originalFilename,
+            subtitle: _formatKb(a.sizeBytes),
+            busy: _busyAttachmentId == a.id,
+            onOpen: () => _openAttachment(a),
+            onDownload: () => _downloadAttachment(a),
+          ),
+        if (!hasFiles && !canAdd)
+          Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: scale.md,
+              vertical: scale.sm + 2,
+            ),
+            child: Text(
+              widget.syncMode == VaultSyncMode.local
+                  ? 'Turn on Sync to Cloud to attach files.'
+                  : 'No files attached',
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: scale.fontSm,
+                height: 1.35,
+              ),
+            ),
+          ),
+        if (canAdd)
+          UiNavRow(
+            icon: 'plus',
+            title: 'Add files',
+            subtitle: hasFiles
+                ? null
+                : (widget.vaultItemId == null
+                    ? 'Add files before saving (required for documents).'
+                    : 'PDF, images, and other files'),
+            onTap: _pickFiles,
+            trailing: const SizedBox.shrink(),
+          ),
+      ],
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Text(
-              'Attachments',
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w600,
-                fontSize: scale.fontSm,
-              ),
-            ),
-            const Spacer(),
-            if (canAdd)
-              IconButton(
-                tooltip: 'Add files',
-                onPressed: _pickFiles,
-                icon: AppIcon('plus', color: colors.primary),
-              ),
-          ],
+        Text(
+          'Attachments',
+          style: TextStyle(
+            color: colors.textSecondary,
+            fontWeight: FontWeight.w500,
+            fontSize: scale.fontSm,
+          ),
         ),
-        if (_progress != null)
-          Padding(
-            padding: EdgeInsets.only(bottom: scale.sm),
+        SizedBox(height: scale.sm),
+        if (_progress != null) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(scale.radiusSm),
             child: LinearProgressIndicator(
               value: _progress,
+              minHeight: 3,
               color: colors.primary,
               backgroundColor: colors.surfaceMuted,
             ),
           ),
-        if (_loading)
-          const Padding(
-            padding: EdgeInsets.all(8),
-            child: Center(child: CircularProgressIndicator()),
-          )
-        else ...[
-          if (showPending)
-            ...widget.pendingFiles.asMap().entries.map(
-                  (e) => _PendingTile(
-                    attachment: e.value,
-                    onRemove:
-                        widget.readOnly ? null : () => _removePending(e.key),
-                  ),
-                ),
-          ..._attachments.map(
-            (a) => _AttachmentTile(
-              attachment: a,
-              busy: _busyAttachmentId == a.id,
-              onOpen: () => _openAttachment(a),
-              onDownload: () => _downloadAttachment(a),
-            ),
-          ),
-          if (_attachments.isEmpty &&
-              (!showPending || widget.pendingFiles.isEmpty))
-            Text(
-              widget.syncMode == VaultSyncMode.local
-                  ? 'Enable Sync to Cloud to attach files.'
-                  : (widget.vaultItemId == null && showPending)
-                      ? 'Add files before saving (required for documents).'
-                      : 'No files attached',
-              style: TextStyle(color: colors.textTertiary, fontSize: scale.fontMd),
-            ),
+          SizedBox(height: scale.sm),
         ],
+        UiGroupedCard(children: rows),
       ],
     );
   }
 }
 
-class _PendingTile extends StatelessWidget {
-  const _PendingTile({
-    required this.attachment,
+String _formatKb(int bytes) => '${(bytes / 1024).toStringAsFixed(1)} KB';
+
+/// One file in the attachments card (pending or uploaded).
+class _FileRow extends StatelessWidget {
+  const _FileRow({
+    required this.title,
+    required this.subtitle,
+    this.busy = false,
+    this.onOpen,
+    this.onDownload,
     this.onRemove,
   });
 
-  final PendingAttachment attachment;
+  final String title;
+  final String subtitle;
+  final bool busy;
+  final VoidCallback? onOpen;
+  final VoidCallback? onDownload;
   final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
+    final scale = Scale.of(context);
     final colors = context.colors;
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: AppIcon('note', color: colors.primary),
-      title: Text(attachment.filename),
-      subtitle: Text(
-        '${(attachment.bytes.length / 1024).toStringAsFixed(1)} KB · pending upload',
-        style: TextStyle(color: colors.textSecondary),
-      ),
-      trailing: onRemove != null
-          ? IconButton(
-              icon: AppIcon('close', color: colors.textSecondary),
-              onPressed: onRemove,
-            )
-          : null,
-    );
-  }
-}
 
-class _AttachmentTile extends StatelessWidget {
-  const _AttachmentTile({
-    required this.attachment,
-    required this.busy,
-    required this.onOpen,
-    required this.onDownload,
-  });
-
-  final VaultAttachment attachment;
-  final bool busy;
-  final VoidCallback onOpen;
-  final VoidCallback onDownload;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: AppIcon('note', color: colors.primary),
-      title: Text(attachment.originalFilename),
-      subtitle: Text(
-        '${(attachment.sizeBytes / 1024).toStringAsFixed(1)} KB',
-        style: TextStyle(color: colors.textSecondary),
-      ),
-      trailing: busy
-          ? const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: 'Open',
-                  onPressed: onOpen,
-                  icon: AppIcon('eye', color: colors.primary),
+    return InkWell(
+      onTap: busy ? null : onOpen,
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: scale.md,
+          vertical: scale.sm + 2,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: scale.s(36),
+              height: scale.s(36),
+              decoration: BoxDecoration(
+                color: colors.primarySoft,
+                borderRadius: BorderRadius.circular(scale.radiusSm),
+              ),
+              child: Center(
+                child: AppIcon('note', size: scale.iconSm, color: colors.primary),
+              ),
+            ),
+            SizedBox(width: scale.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: scale.fontMd,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: scale.xs / 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: scale.fontSm,
+                      color: colors.textSecondary,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (busy)
+              SizedBox(
+                width: scale.s(22),
+                height: scale.s(22),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: colors.primary,
                 ),
+              )
+            else ...[
+              if (onDownload != null)
                 IconButton(
                   tooltip: 'Download',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints(
+                    minWidth: scale.s(36),
+                    minHeight: scale.s(36),
+                  ),
                   onPressed: onDownload,
-                  icon: Icon(Icons.download_rounded, color: colors.primary),
+                  icon: Icon(
+                    Icons.download_outlined,
+                    size: scale.iconSm,
+                    color: colors.textSecondary,
+                  ),
                 ),
-              ],
-            ),
+              if (onRemove != null)
+                IconButton(
+                  tooltip: 'Remove',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints(
+                    minWidth: scale.s(36),
+                    minHeight: scale.s(36),
+                  ),
+                  onPressed: onRemove,
+                  icon: AppIcon(
+                    'close',
+                    size: scale.iconSm,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              if (onOpen != null && onRemove == null)
+                AppIcon(
+                  'chevron_right',
+                  color: colors.textTertiary,
+                  size: scale.iconSm,
+                ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

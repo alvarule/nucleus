@@ -7,8 +7,8 @@ import 'package:nucleus/core/responsive/scale.dart';
 import 'package:nucleus/core/theme/app_colors.dart';
 import 'package:nucleus/features/generator/domain/password_generator.dart';
 import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
-import 'package:nucleus/shared/widgets/app_icon.dart';
-import 'package:nucleus/shared/widgets/vault_text_field.dart';
+import 'package:nucleus/shared/widgets/app_buttons.dart';
+import 'package:nucleus/shared/widgets/form_setting_row.dart';
 
 class GeneratorPage extends ConsumerStatefulWidget {
   const GeneratorPage({super.key, this.fixItem});
@@ -58,84 +58,132 @@ class _GeneratorPageState extends ConsumerState<GeneratorPage> {
     return Scaffold(
       appBar: AppBar(title: Text(isFixFlow ? 'Fix password' : 'Generator')),
       body: ListView(
-        padding: EdgeInsets.all(scale.lg),
+        padding: EdgeInsets.fromLTRB(scale.md, scale.sm, scale.md, scale.lg),
         children: [
           Container(
-            padding: EdgeInsets.all(scale.lg),
+            padding: EdgeInsets.all(scale.md),
             decoration: BoxDecoration(
               color: colors.surface,
-              borderRadius: BorderRadius.circular(scale.radiusLg),
+              borderRadius: BorderRadius.circular(scale.radiusMd),
               border: Border.all(color: colors.border),
             ),
-            child: SelectableText(
-              _password,
-              style: TextStyle(
-                fontSize: scale.fontXl,
-                fontWeight: FontWeight.w700,
-                color: colors.textPrimary,
-                letterSpacing: 1,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SelectableText(
+                  _password,
+                  style: TextStyle(
+                    fontSize: scale.fontLg,
+                    fontWeight: FontWeight.w700,
+                    color: colors.textPrimary,
+                    letterSpacing: 0.5,
+                    height: 1.35,
+                  ),
+                ),
+                SizedBox(height: scale.md),
+                Row(
+                  children: [
+                    Text(
+                      'Length',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: scale.fontSm,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${_length.round()}',
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontSize: scale.fontMd,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 3,
+                    thumbShape: RoundSliderThumbShape(
+                      enabledThumbRadius: scale.s(7),
+                    ),
+                    overlayShape: RoundSliderOverlayShape(
+                      overlayRadius: scale.s(14),
+                    ),
+                  ),
+                  child: Slider(
+                    value: _length,
+                    min: 8,
+                    max: 64,
+                    divisions: 56,
+                    activeColor: colors.primary,
+                    onChanged: (v) {
+                      setState(() => _length = v);
+                      _regenerate();
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
-          SizedBox(height: scale.lg),
-          Text(
-            'Length: ${_length.round()}',
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: scale.fontMd,
+          SizedBox(height: scale.sm),
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: scale.md,
+              vertical: scale.xs,
             ),
-          ),
-          Slider(
-            value: _length,
-            min: 8,
-            max: 64,
-            divisions: 56,
-            activeColor: colors.primary,
-            onChanged: (v) {
-              setState(() => _length = v);
-              _regenerate();
-            },
-          ),
-          SwitchListTile(
-            title: const Text('Lowercase'),
-            value: _lower,
-            activeThumbColor: colors.primary,
-            onChanged: (v) {
-              setState(() => _lower = v);
-              _regenerate();
-            },
-          ),
-          SwitchListTile(
-            title: const Text('Uppercase'),
-            value: _upper,
-            activeThumbColor: colors.primary,
-            onChanged: (v) {
-              setState(() => _upper = v);
-              _regenerate();
-            },
-          ),
-          SwitchListTile(
-            title: const Text('Numbers'),
-            value: _numbers,
-            activeThumbColor: colors.primary,
-            onChanged: (v) {
-              setState(() => _numbers = v);
-              _regenerate();
-            },
-          ),
-          SwitchListTile(
-            title: const Text('Special characters'),
-            value: _symbols,
-            activeThumbColor: colors.primary,
-            onChanged: (v) {
-              setState(() => _symbols = v);
-              _regenerate();
-            },
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(scale.radiusMd),
+              border: Border.all(color: colors.border),
+            ),
+            child: Column(
+              children: [
+                FormSettingRow(
+                  label: 'Lowercase',
+                  value: _lower,
+                  onChanged: (v) {
+                    setState(() => _lower = v);
+                    _regenerate();
+                  },
+                ),
+                Divider(height: 1, color: colors.border),
+                FormSettingRow(
+                  label: 'Uppercase',
+                  value: _upper,
+                  onChanged: (v) {
+                    setState(() => _upper = v);
+                    _regenerate();
+                  },
+                ),
+                Divider(height: 1, color: colors.border),
+                FormSettingRow(
+                  label: 'Numbers',
+                  value: _numbers,
+                  onChanged: (v) {
+                    setState(() => _numbers = v);
+                    _regenerate();
+                  },
+                ),
+                Divider(height: 1, color: colors.border),
+                FormSettingRow(
+                  label: 'Special characters',
+                  value: _symbols,
+                  onChanged: (v) {
+                    setState(() => _symbols = v);
+                    _regenerate();
+                  },
+                ),
+              ],
+            ),
           ),
           SizedBox(height: scale.md),
           PrimaryButton(label: 'Regenerate', onPressed: _regenerate),
           SizedBox(height: scale.sm),
-          OutlinedButton.icon(
+          SecondaryButton(
+            label: 'Copy',
+            icon: 'copy',
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: _password));
               if (context.mounted) {
@@ -144,40 +192,27 @@ class _GeneratorPageState extends ConsumerState<GeneratorPage> {
                 );
               }
             },
-            icon: AppIcon('copy', color: colors.primary),
-            label: Text('Copy', style: TextStyle(color: colors.primary)),
-            style: OutlinedButton.styleFrom(
-              minimumSize: Size.fromHeight(scale.s(52)),
-              side: BorderSide(color: colors.primary),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(scale.radiusMd),
-              ),
-            ),
           ),
-          SizedBox(height: scale.sm),
-          TextButton(
-            onPressed: () {
-              if (isFixFlow) {
+          SizedBox(height: scale.xs),
+          Center(
+            child: AppTextButton(
+              label: isFixFlow ? 'Update vault item' : 'Save as vault item',
+              onPressed: () {
+                if (isFixFlow) {
+                  context.push(
+                    '/vault/edit/${fixItem.id}',
+                    extra: {
+                      'item': fixItem,
+                      'prefill': {'password': _password},
+                    },
+                  );
+                  return;
+                }
                 context.push(
-                  '/vault/edit/${fixItem.id}',
-                  extra: {
-                    'item': fixItem,
-                    'prefill': {'password': _password},
-                  },
+                  '/vault/new?type=password',
+                  extra: <String, dynamic>{'password': _password, 'label': ''},
                 );
-                return;
-              }
-              context.push(
-                '/vault/new?type=password',
-                extra: <String, dynamic>{'password': _password, 'label': ''},
-              );
-            },
-            child: Text(
-              isFixFlow ? 'Update vault item' : 'Save as vault item',
-              style: TextStyle(
-                color: colors.primary,
-                fontWeight: FontWeight.w600,
-              ),
+              },
             ),
           ),
         ],

@@ -6,7 +6,9 @@ import 'package:nucleus/core/di/providers.dart';
 import 'package:nucleus/core/responsive/scale.dart';
 import 'package:nucleus/core/theme/app_colors.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
+import 'package:nucleus/shared/widgets/app_dialog.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
+import 'package:nucleus/shared/widgets/app_buttons.dart';
 import 'package:nucleus/shared/widgets/vault_text_field.dart';
 
 class UnlockPage extends ConsumerStatefulWidget {
@@ -58,27 +60,14 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
   }
 
   Future<void> _confirmSignOut() async {
-    final colors = context.colors;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Log Out?'),
-        content: const Text(
-          'You will need your master password to unlock again.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Log Out', style: TextStyle(color: colors.danger)),
-          ),
-        ],
-      ),
+      title: 'Log out?',
+      message: 'You will need your master password to unlock again.',
+      confirmLabel: 'Log out',
+      tone: AppConfirmTone.destructive,
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     await ref.read(vaultSessionProvider.notifier).logout();
     if (mounted) context.go('/login');
   }
@@ -143,18 +132,10 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
               ),
               SizedBox(height: scale.xl),
               if (_bioAvailable)
-                OutlinedButton.icon(
+                SecondaryButton(
+                  label: 'Unlock with fingerprint',
+                  icon: 'fingerprint',
                   onPressed: _unlockWithBiometrics,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: colors.primary,
-                    side: BorderSide(color: colors.primary),
-                    minimumSize: Size.fromHeight(scale.s(52)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(scale.radiusMd),
-                    ),
-                  ),
-                  icon: AppIcon('fingerprint', color: colors.primary),
-                  label: const Text('Unlock with fingerprint'),
                 ),
               if (_bioAvailable) ...[
                 SizedBox(height: scale.md),
@@ -202,11 +183,11 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
                   fontSize: scale.fontMd,
                 ),
               ),
-              TextButton(
-                onPressed: _confirmSignOut,
-                child: Text(
-                  'Log Out',
-                  style: TextStyle(color: colors.textSecondary),
+              Center(
+                child: AppTextButton(
+                  label: 'Log out',
+                  destructive: true,
+                  onPressed: _confirmSignOut,
                 ),
               ),
             ],

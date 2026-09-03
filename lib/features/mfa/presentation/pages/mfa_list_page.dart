@@ -130,33 +130,21 @@ class _MfaListPageState extends ConsumerState<MfaListPage> {
                     message: 'Try a different issuer or account name',
                   );
                 }
-                return ListView(
-                  padding: EdgeInsets.fromLTRB(
-                    scale.lg,
-                    0,
-                    scale.lg,
-                    scale.lg,
-                  ),
-                  children: [
-                    Material(
-                      color: colors.surface,
-                      borderRadius: BorderRadius.circular(scale.radiusMd),
-                      clipBehavior: Clip.antiAlias,
-                      child: Column(
-                        children: [
-                          for (var i = 0; i < visible.length; i++) ...[
-                            _MfaEntryTile(
-                              entry: visible[i],
-                              onTap: () =>
-                                  context.push('/mfa/${visible[i].id}'),
-                            ),
-                            if (i < visible.length - 1)
-                              Divider(height: 1, color: colors.border),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
+                return ListView.builder(
+                  padding: EdgeInsets.only(bottom: scale.lg),
+                  itemCount: visible.length,
+                  itemBuilder: (context, index) {
+                    final entry = visible[index];
+                    return Column(
+                      children: [
+                        _MfaEntryTile(
+                          entry: entry,
+                          onTap: () => context.push('/mfa/${entry.id}'),
+                        ),
+                        Divider(height: 1, color: colors.border),
+                      ],
+                    );
+                  },
                 );
               },
             ),

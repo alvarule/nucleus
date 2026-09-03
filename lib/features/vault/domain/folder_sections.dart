@@ -1,4 +1,5 @@
 /// Groups filtered vault items under folders. Uncategorized is always last.
+/// Empty folders are omitted; the folder picker still lists every folder.
 import 'package:nucleus/features/vault/domain/entities/vault_folder.dart';
 import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
 import 'package:nucleus/features/vault/domain/vault_sort.dart';
@@ -25,7 +26,6 @@ List<VaultFolderSection> buildFolderSections({
   required List<VaultItem> items,
   required List<VaultFolder> folders,
   required VaultSort sort,
-  bool includeEmptyFolders = true,
 }) {
   final sortedFolders = [...folders]..sort((a, b) {
       final byOrder = a.sortOrder.compareTo(b.sortOrder);
@@ -38,8 +38,8 @@ List<VaultFolderSection> buildFolderSections({
 
   for (final folder in sortedFolders) {
     final inFolder = items.where((i) => i.folderId == folder.id).toList();
+    if (inFolder.isEmpty) continue;
     sortItems(inFolder, sort);
-    if (inFolder.isEmpty && !includeEmptyFolders) continue;
     sections.add(
       VaultFolderSection(
         folderId: folder.id,
@@ -58,8 +58,8 @@ List<VaultFolderSection> buildFolderSections({
             !knownFolderIds.contains(i.folderId),
       )
       .toList();
-  sortItems(uncategorized, sort);
-  if (uncategorized.isNotEmpty || includeEmptyFolders) {
+  if (uncategorized.isNotEmpty) {
+    sortItems(uncategorized, sort);
     sections.add(
       VaultFolderSection(
         folderId: uncategorizedFolderId,

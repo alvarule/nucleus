@@ -1,5 +1,95 @@
 # Changelog
 
+## [2026-09-04] Home folder headers with primary rail
+
+**Summary:** Folder headers are rounded surface cards with a primary-color left accent, larger folder icon and title, and plain “N items” plus chevron. Sticky scroll, jump-to-folder, expand/collapse, and long-press manage are unchanged.
+**Files:** `lib/features/vault/presentation/pages/vault_home_page.dart`, `docs/ARCHITECTURE.md`
+**Reasoning:** Match the card + rail treatment so headers read as groups without changing list physics.
+
+## [2026-09-04] Folder manage sheet and shared confirm buttons
+
+**Summary:** Long-press folder actions use the same outlined sheet rows as Settings pickers (rose wells; delete stays danger text). Create/rename folder dialogs and confirm popups (delete, logout) share the Create-folder Save rose `ElevatedButton`.
+**Files:** `lib/features/vault/presentation/widgets/folder_sheets.dart`, `lib/shared/widgets/app_dialog.dart`, `docs/ARCHITECTURE.md`
+**Reasoning:** Grey action rows and red confirm fills did not match the rest of the sheet/dialog chrome.
+
+## [2026-09-04] Jump-to-folder forward offset
+
+**Summary:** Folder jump scrolls by summing sliver `scrollExtent` so going A→C/D pins the target at the top, matching reverse jumps.
+**Files:** `lib/features/vault/presentation/pages/vault_home_page.dart`, `docs/ARCHITECTURE.md`
+**Reasoning:** `getOffsetToReveal` subtracted each earlier sticky header’s obstruction, one extra header gap per skipped folder when jumping down.
+
+## [2026-09-04] Fix Home jump-to-folder scroll offset
+
+**Summary:** Jump-to-folder scrolls with `getOffsetToReveal` on a non-sticky sentinel before each section instead of `ensureVisible` on the sticky header.
+**Files:** `lib/features/vault/presentation/pages/vault_home_page.dart`, `docs/ARCHITECTURE.md`
+**Reasoning:** A stuck header’s on-screen box is already “visible” at the top, so jumps landed on the wrong folder.
+
+## [2026-09-04] Close Home chips-to-header gap
+
+**Summary:** Removed the spacer under type chips and the folder header’s top inset so list tiles cannot peek between the chip bar and sticky headers.
+**Files:** `lib/features/vault/presentation/pages/vault_home_page.dart`
+**Reasoning:** That strip was page background outside the clipped list, so scrolling items showed through.
+
+## [2026-09-04] Hide empty folder headers on Home
+
+**Summary:** Home (All and type chips) only renders folder sections that have at least one visible item. Move/form folder pickers still list every folder. Sticky headers and multi-select are unchanged.
+**Files:** `lib/features/vault/domain/folder_sections.dart`, `lib/features/vault/presentation/providers/vault_list_provider.dart`, `lib/features/vault/presentation/pages/vault_home_page.dart`, `test/widget_test.dart`, `docs/ARCHITECTURE.md`
+**Reasoning:** Empty headers added noise; destinations already exist in the move picker. Type filters reuse the same section builder, so empty folders drop out there too.
+
+## [2026-09-04] MFA backup codes save location picker
+
+**Summary:** Setup and regenerate **Save file** opens the system save picker (`FilePicker.saveFile`) instead of writing into the app documents directory.
+**Files:** `lib/features/settings/presentation/pages/app_login_mfa_pages.dart`, `docs/ARCHITECTURE.md`
+**Reasoning:** Same control as attachment downloads so codes are not dropped in an opaque app-private path.
+
+## [2026-09-04] Attachments match form/detail cards
+
+**Summary:** Attachments on vault form and detail use the field-label + bordered grouped card pattern: rose icon tiles, tap-to-open rows, compact download/remove, and an in-card Add files row.
+**Files:** `lib/shared/widgets/attachments_section.dart`, `lib/features/vault/presentation/pages/vault_item_form_page.dart`, `docs/ARCHITECTURE.md`
+**Reasoning:** Stock ListTiles and a header plus button sat outside the revamp (sync row, detail field card, UiNavRow).
+
+## [2026-09-04] Home sort picker rows
+
+**Summary:** Sort uses the shared option sheet: rose selected row, icons, labels like “Updated · newest first”. Padding matches Settings pickers (`md` inset, `sm` between rows).
+**Files:** `lib/features/vault/presentation/widgets/folder_sheets.dart`, `lib/shared/widgets/app_option_sheet.dart`, `lib/features/vault/domain/vault_sort.dart`, `docs/ARCHITECTURE.md`
+**Reasoning:** Grey muted cards and tight `xs` gaps did not match the rest of the pickers; icons and field · direction labels scan faster than “Oldest updated”.
+
+## [2026-09-03] Home selection chrome, clip filters, add-item sheet
+
+**Summary:** Multi-select uses the app bar (close, count, compact Move) instead of a bar above the tab nav. Search/chips sit on an opaque header with a clipped list. The add-item type grid uses taller cells and can scroll.
+**Files:** `lib/features/vault/presentation/pages/vault_home_page.dart`, `docs/ARCHITECTURE.md`
+**Reasoning:** Nested bottom bars looked unfinished; list paint leaked through the chip row; grid aspect 1.55 was shorter than icon + two labels.
+
+## [2026-09-03] Home multi-select Move bar layout
+
+**Summary:** Selection-mode Move `FilledButton` no longer uses the theme’s infinite min width, so the bottom bar lays out in a `Row`.
+**Files:** `lib/features/vault/presentation/pages/vault_home_page.dart`, `docs/ARCHITECTURE.md`
+**Reasoning:** Global filled-button theme is sized for full-bleed CTAs (`Size.fromHeight`); that unconstrained width crashes when the button sits beside Cancel in the selection bar.
+
+## [2026-09-03] Quieter sync toggle, health sections, option sheets
+
+**Summary:** Cloud sync on the vault form is a normal outlined row (switch is the on-state, not a rose fill). Health list again splits Needs attention / Reused / Secure. Settings pickers and the add-item sheet share a drag-handle option UI with selected rose rows and a 2-column type grid.
+**Files:** `lib/shared/widgets/vault_sync_status.dart`, `lib/features/health/presentation/pages/health_page.dart`, `lib/shared/widgets/app_option_sheet.dart`, `lib/features/settings/presentation/pages/settings_page.dart`, `lib/features/vault/presentation/pages/vault_home_page.dart`, `docs/ARCHITECTURE.md`
+**Reasoning:** A filled rose sync row looked like a primary CTA. Health needs visual triage. Picker sheets were leftover Material ListTiles.
+
+## [2026-09-03] Rose selection language; ungrouped lists; unified app bars
+
+**Summary:** Selected controls use `primarySoft` fill + primary border/icon (same as Settings appearance). Settings sync/security and Health lists sit on the page background like Home/MFA (no grey group cards). Vault form and Profile dropped section headers. App bar titles are 16 / w700 app-wide.
+**Files:** `lib/core/theme/app_theme.dart`, `lib/features/settings/presentation/pages/settings_page.dart`, `lib/features/health/presentation/pages/health_page.dart`, `lib/features/vault/presentation/pages/vault_item_form_page.dart`, `lib/features/profile/presentation/pages/profile_page.dart`, `lib/shared/widgets/vault_sync_status.dart`, `lib/shared/widgets/ui_list_group.dart`, `lib/features/vault/presentation/pages/vault_item_detail_page.dart`, `lib/features/vault/presentation/widgets/folder_sheets.dart`, `docs/ARCHITECTURE.md`
+**Reasoning:** Grey inset groups fought the page background; rose chips already defined the selected state. Lists share one tile language so scanning stays consistent.
+
+## [2026-09-03] Settings, Health, Profile, vault form UI density
+
+**Summary:** Settings, Health, and Profile use grouped section cards and compact rows; vault create/edit puts Save in the app bar with sectioned layout (organization, details, storage).
+**Files:** `lib/shared/widgets/ui_list_group.dart`, `lib/features/settings/presentation/pages/settings_page.dart`, `lib/features/health/presentation/pages/health_page.dart`, `lib/features/vault/presentation/pages/vault_item_form_page.dart`, `lib/features/profile/presentation/pages/profile_page.dart`, `docs/ARCHITECTURE.md`
+**Reasoning:** Match the rest of the app’s tighter settings-style UI and standard iOS-style Save in the navigation bar on forms.
+
+## [2026-09-03] Shared UI polish (dialogs, buttons, vault/MFA/generator)
+
+**Summary:** Introduced shared confirm dialogs and button styles; MFA list tiles match vault home (flat rows + dividers); vault detail shows cloud/local chip and denser field card; generator and sync toggle use compact setting rows; attachments label matches form fields.
+**Files:** `lib/shared/widgets/app_dialog.dart`, `lib/shared/widgets/app_buttons.dart`, `lib/shared/widgets/vault_sync_status.dart`, `lib/shared/widgets/form_setting_row.dart`, `lib/core/theme/app_theme.dart`, `lib/features/mfa/presentation/pages/mfa_list_page.dart`, `lib/features/mfa/presentation/pages/mfa_detail_page.dart`, `lib/features/vault/presentation/pages/vault_item_detail_page.dart`, `lib/features/vault/presentation/pages/vault_item_form_page.dart`, `lib/features/generator/presentation/pages/generator_page.dart`, `lib/shared/widgets/attachments_section.dart`, `lib/features/vault/presentation/pages/vault_home_page.dart`, `lib/features/unlock/presentation/pages/unlock_page.dart`, `lib/features/settings/presentation/pages/settings_page.dart`, `lib/features/vault/presentation/widgets/folder_sheets.dart`, `docs/ARCHITECTURE.md`
+**Reasoning:** Consistent minimal CTAs and dialogs reduce visual noise; detail/generator screens use space more efficiently without changing behavior.
+
 ## [2026-09-03] Sign-in MFA gate after app restart; OTP pin fields
 
 **Summary:** If sign-in MFA was interrupted (app restart), `loadProfile` calls `abandonIncompleteSignIn` (sign out, clear pending flags) instead of a combined master-password + MFA screen; user starts again at email/password then MFA in the same session.

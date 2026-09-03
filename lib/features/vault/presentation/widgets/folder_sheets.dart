@@ -9,7 +9,9 @@ import 'package:nucleus/features/vault/domain/entities/vault_folder.dart';
 import 'package:nucleus/features/vault/domain/folder_sections.dart';
 import 'package:nucleus/features/vault/domain/vault_sort.dart';
 import 'package:nucleus/features/vault/presentation/providers/vault_list_provider.dart';
+import 'package:nucleus/shared/widgets/app_dialog.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
+import 'package:nucleus/shared/widgets/app_option_sheet.dart';
 
 Future<void> _showFolderActionError(
   BuildContext context,
@@ -93,7 +95,7 @@ class _FolderNameDialogState extends State<_FolderNameDialog> {
               Text(
                 widget.title,
                 style: TextStyle(
-                  fontSize: scale.fontXl,
+                  fontSize: scale.fontLg,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                 ),
@@ -126,55 +128,40 @@ class _FolderNameDialogState extends State<_FolderNameDialog> {
               SizedBox(height: scale.lg),
               Row(
                 children: [
-                  // Expanded(
-                  //   child: OutlinedButton(
-                  //     onPressed: () => Navigator.pop(context),
-                  //     style: OutlinedButton.styleFrom(
-                  //       foregroundColor: colors.textSecondary,
-                  //       side: BorderSide(color: colors.border),
-                  //       padding: EdgeInsets.symmetric(vertical: scale.sm),
-                  //     ),
-                  //     child: const Text('Cancel'),
-                  //   ),
-                  // ),
-                  // SizedBox(width: scale.sm),
-                  // Expanded(
-                  //   child: ElevatedButton(
-                  //     onPressed: _submit,
-                  //     child: const Text('Save'),
-                  //   ),
-                  // ),
-Expanded(
-  child: SizedBox(
-    height: scale.s(48),
-    child: OutlinedButton(
-      onPressed: () => Navigator.pop(context),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: colors.textSecondary,
-        side: BorderSide(color: colors.border),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(scale.radiusMd),
-        ),
-      ),
-      child: const Text('Cancel'),
-    ),
-  ),
-),
-SizedBox(width: scale.sm),
-Expanded(
-  child: SizedBox(
-    height: scale.s(48),
-    child: ElevatedButton(
-      onPressed: _submit,
-      style: ElevatedButton.styleFrom(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(scale.radiusMd),
-        ),
-      ),
-      child: const Text('Save'),
-    ),
-  ),
-),
+                  Expanded(
+                    child: SizedBox(
+                      height: scale.s(48),
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: colors.textSecondary,
+                          side: BorderSide(color: colors.border),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(scale.radiusMd),
+                          ),
+                        ),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: scale.sm),
+                  Expanded(
+                    child: SizedBox(
+                      height: scale.s(48),
+                      child: ElevatedButton(
+                        onPressed: _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colors.primary,
+                          foregroundColor: colors.onPrimary,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(scale.radiusMd),
+                          ),
+                        ),
+                        child: const Text('Save'),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -190,97 +177,22 @@ Future<void> showSortSheet({
   required WidgetRef ref,
   required VaultSort current,
 }) async {
-  final colors = context.colors;
-  final scale = Scale.of(context);
-
-  await showModalBottomSheet<void>(
+  // Same row chrome/spacing as Settings pickers, with per-option icons.
+  final picked = await showAppOptionSheet<VaultSort>(
     context: context,
-    backgroundColor: colors.surface,
-    isScrollControlled: true,
-    showDragHandle: true,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(scale.radiusLg)),
-    ),
-    builder: (ctx) {
-      return SafeArea(
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(scale.md, 0, scale.md, scale.md),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: EdgeInsets.only(bottom: scale.sm),
-                child: Text(
-                  'Sort items',
-                  style: TextStyle(
-                    fontSize: scale.fontLg,
-                    fontWeight: FontWeight.w700,
-                    color: colors.textPrimary,
-                  ),
-                ),
-              ),
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  children: VaultSort.values.map((sort) {
-                    final selected = sort == current;
-                    return Padding(
-                      padding: EdgeInsets.only(bottom: scale.xs),
-                      child: Material(
-                        color: selected
-                            ? colors.primarySoft
-                            : colors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(scale.radiusSm),
-                        child: InkWell(
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            ref.read(vaultListProvider.notifier).setSort(sort);
-                          },
-                          borderRadius:
-                              BorderRadius.circular(scale.radiusSm),
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: scale.md,
-                              vertical: scale.sm + 2,
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    sort.label,
-                                    style: TextStyle(
-                                      fontSize: scale.fontMd,
-                                      fontWeight: selected
-                                          ? FontWeight.w600
-                                          : FontWeight.w500,
-                                      color: selected
-                                          ? colors.primary
-                                          : colors.textPrimary,
-                                    ),
-                                  ),
-                                ),
-                                if (selected)
-                                  AppIcon(
-                                    'check',
-                                    size: scale.iconSm,
-                                    color: colors.primary,
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
-          ),
+    title: 'Sort items',
+    selected: current,
+    options: [
+      for (final sort in VaultSort.values)
+        AppSheetOption(
+          value: sort,
+          title: sort.label,
+          icon: sort.icon,
         ),
-      );
-    },
+    ],
   );
+  if (picked == null) return;
+  ref.read(vaultListProvider.notifier).setSort(picked);
 }
 
 /// Long-press on a section header. Uncategorized only offers create.
@@ -330,8 +242,6 @@ Future<void> showFolderManageSheet({
               _SheetAction(
                 icon: 'plus',
                 label: 'New folder',
-                iconColor: colors.primary,
-                iconBg: colors.primarySoft,
                 onTap: () async {
                   Navigator.pop(ctx);
                   final name = await showFolderNameDialog(
@@ -347,12 +257,10 @@ Future<void> showFolderManageSheet({
                 },
               ),
               if (!isUncategorized) ...[
-                SizedBox(height: scale.xs),
+                SizedBox(height: scale.sm),
                 _SheetAction(
                   icon: 'edit',
                   label: 'Rename',
-                  iconColor: colors.textSecondary,
-                  iconBg: colors.surfaceMuted,
                   onTap: () async {
                     Navigator.pop(ctx);
                     final name = await showFolderNameDialog(
@@ -370,44 +278,22 @@ Future<void> showFolderManageSheet({
                     }
                   },
                 ),
-                SizedBox(height: scale.xs),
+                SizedBox(height: scale.sm),
                 _SheetAction(
                   icon: 'delete',
                   label: 'Delete',
-                  iconColor: colors.danger,
-                  iconBg: colors.danger.withValues(alpha: 0.12),
-                  labelColor: colors.danger,
+                  destructive: true,
                   onTap: () async {
                     Navigator.pop(ctx);
-                    final ok = await showDialog<bool>(
+                    final ok = await showAppConfirmDialog(
                       context: context,
-                      builder: (d) => AlertDialog(
-                        backgroundColor: colors.surface,
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(scale.radiusLg),
-                        ),
-                        title: const Text('Delete folder?'),
-                        content: Text(
+                      title: 'Delete folder?',
+                      message:
                           'Items in "$title" will move to Uncategorized. Items are not deleted.',
-                          style: TextStyle(color: colors.textSecondary),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(d, false),
-                            child: const Text('Cancel'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(d, true),
-                            child: Text(
-                              'Delete',
-                              style: TextStyle(color: colors.danger),
-                            ),
-                          ),
-                        ],
-                      ),
+                      confirmLabel: 'Delete',
+                      tone: AppConfirmTone.destructive,
                     );
-                    if (ok == true) {
+                    if (ok) {
                       try {
                         await ref
                             .read(vaultListProvider.notifier)
@@ -502,8 +388,6 @@ Future<String?> showFolderPickerSheet({
                       child: _SheetAction(
                         icon: 'plus',
                         label: 'New folder',
-                        iconColor: colors.primary,
-                        iconBg: colors.primarySoft,
                         onTap: () async {
                           final name = await showFolderNameDialog(
                             ctx,
@@ -538,34 +422,35 @@ class _SheetAction extends StatelessWidget {
   const _SheetAction({
     required this.icon,
     required this.label,
-    required this.iconColor,
-    required this.iconBg,
     required this.onTap,
-    this.labelColor,
+    this.destructive = false,
   });
 
   final String icon;
   final String label;
-  final Color iconColor;
-  final Color iconBg;
-  final Color? labelColor;
   final VoidCallback onTap;
+  final bool destructive;
 
   @override
   Widget build(BuildContext context) {
     final scale = Scale.of(context);
     final colors = context.colors;
+    final accent = destructive ? colors.danger : colors.primary;
 
     return Material(
-      color: colors.surfaceMuted,
-      borderRadius: BorderRadius.circular(scale.radiusSm),
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(scale.radiusMd),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(scale.radiusSm),
-        child: Padding(
+        borderRadius: BorderRadius.circular(scale.radiusMd),
+        child: Container(
           padding: EdgeInsets.symmetric(
             horizontal: scale.md,
-            vertical: scale.sm + 2,
+            vertical: scale.sm + 4,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(scale.radiusMd),
+            border: Border.all(color: colors.border),
           ),
           child: Row(
             children: [
@@ -573,11 +458,13 @@ class _SheetAction extends StatelessWidget {
                 width: scale.s(36),
                 height: scale.s(36),
                 decoration: BoxDecoration(
-                  color: iconBg,
+                  color: destructive
+                      ? colors.danger.withValues(alpha: 0.12)
+                      : colors.primarySoft,
                   borderRadius: BorderRadius.circular(scale.radiusSm),
                 ),
                 child: Center(
-                  child: AppIcon(icon, size: scale.iconSm, color: iconColor),
+                  child: AppIcon(icon, size: scale.iconSm, color: accent),
                 ),
               ),
               SizedBox(width: scale.md),
@@ -587,11 +474,15 @@ class _SheetAction extends StatelessWidget {
                   style: TextStyle(
                     fontSize: scale.fontMd,
                     fontWeight: FontWeight.w600,
-                    color: labelColor ?? colors.textPrimary,
+                    color: destructive ? colors.danger : colors.textPrimary,
                   ),
                 ),
               ),
-              AppIcon('chevron_right', color: colors.textTertiary, size: scale.iconSm),
+              AppIcon(
+                'chevron_right',
+                color: colors.textTertiary,
+                size: scale.iconSm,
+              ),
             ],
           ),
         ),
@@ -619,15 +510,22 @@ class _SheetOption extends StatelessWidget {
     final colors = context.colors;
 
     return Material(
-      color: selected ? colors.primarySoft : colors.surfaceMuted,
+      color: selected ? colors.primarySoft : colors.surface,
       borderRadius: BorderRadius.circular(scale.radiusSm),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(scale.radiusSm),
-        child: Padding(
+        child: Container(
           padding: EdgeInsets.symmetric(
             horizontal: scale.md,
             vertical: scale.sm + 2,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(scale.radiusSm),
+            border: Border.all(
+              color: selected ? colors.primary : colors.border,
+              width: selected ? 1.5 : 1,
+            ),
           ),
           child: Row(
             children: [
