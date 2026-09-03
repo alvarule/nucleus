@@ -4,6 +4,7 @@ import 'package:nucleus/core/crypto/vault_crypto_service.dart';
 import 'package:nucleus/core/di/providers.dart';
 import 'package:nucleus/core/errors/app_exception.dart';
 import 'package:nucleus/core/errors/user_facing_error.dart';
+import 'package:nucleus/features/auth/presentation/providers/pending_login_provider.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
 
 /// Loading and error flags for login/signup/vault-setup forms.
@@ -159,6 +160,12 @@ class AuthController extends StateNotifier<AuthFormState> {
       }
       final profile = _ref.read(vaultSessionProvider).profile;
       if (profile == null) {
+        state = state.copyWith(loading: false);
+        return true;
+      }
+      if (profile.loginTotpEnabled) {
+        _ref.read(pendingLoginPasswordProvider.notifier).state = password;
+        await _ref.read(vaultSessionProvider.notifier).markSignInMfaRequired();
         state = state.copyWith(loading: false);
         return true;
       }

@@ -184,6 +184,46 @@ class VaultCryptoService {
     return utf8.decode(clear);
   }
 
+  /// Encrypts raw bytes (attachment chunks). Packed: nonce || ciphertext || mac.
+  Future<Uint8List> encryptBytes({
+    required Uint8List dek,
+    required Uint8List plaintext,
+    List<int>? aad,
+  }) async {
+    final key = SecretKey(dek);
+    final box = await AesGcm.with256bits().encrypt(
+      plaintext,
+      secretKey: key,
+      aad: aad ?? const <int>[],
+    );
+    return Uint8List.fromList([
+      ...box.nonce,
+      ...box.cipherText,
+      ...box.mac.bytes,
+    ]);
+  }
+
+  /// Decrypts [encryptBytes] output.
+  Future<Uint8List> decryptBytes({
+    required Uint8List dek,
+    required Uint8List packed,
+    List<int>? aad,
+  }) async {
+    final key = SecretKey(dek);
+    if (packed.length < _nonceLength + _macLength + 1) {
+      throw StateError('Invalid ciphertext');
+    }
+    final nonce = packed.sublist(0, _nonceLength);
+    final mac = Mac(packed.sublist(packed.length - _macLength));
+    final cipherText = packed.sublist(_nonceLength, packed.length - _macLength);
+    final clear = await AesGcm.with256bits().decrypt(
+      SecretBox(cipherText, nonce: nonce, mac: mac),
+      secretKey: key,
+      aad: aad ?? const <int>[],
+    );
+    return Uint8List.fromList(clear);
+  }
+
   /// Wraps the same DEK under a new master password (items stay encrypted as-is).
   Future<WrappedDek> rewrapDek({
     required Uint8List dek,

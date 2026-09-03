@@ -15,6 +15,7 @@ import 'package:nucleus/features/health/presentation/widgets/health_badge.dart';
 import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
 import 'package:nucleus/features/vault/domain/password_field_helpers.dart';
 import 'package:nucleus/features/vault/presentation/providers/vault_list_provider.dart';
+import 'package:nucleus/shared/widgets/attachments_section.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
 import 'package:nucleus/shared/widgets/masked_secret_field.dart';
 import 'package:nucleus/shared/widgets/sensitive_access.dart';
@@ -296,6 +297,12 @@ class _VaultItemDetailPageState extends ConsumerState<VaultItemDetailPage> {
                 ),
               );
             }),
+            SizedBox(height: scale.lg),
+            AttachmentsSection(
+              vaultItemId: item.id,
+              syncMode: item.syncMode,
+              readOnly: true,
+            ),
             SizedBox(height: scale.md),
             Text(
               'Created ${dateFormat.format(item.createdAt)}',

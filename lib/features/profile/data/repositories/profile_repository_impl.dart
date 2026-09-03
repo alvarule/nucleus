@@ -7,6 +7,7 @@ import 'package:nucleus/core/errors/offline_messages.dart';
 import 'package:nucleus/core/network/connectivity_service.dart';
 import 'package:nucleus/features/auth/domain/repositories/auth_repository.dart';
 import 'package:nucleus/features/profile/domain/entities/user_profile.dart';
+import 'package:nucleus/features/vault/domain/entities/vault_sync_mode.dart';
 
 class ProfileRepositoryImpl implements ProfileRepository {
   ProfileRepositoryImpl(this._client, this._connectivity);
@@ -68,6 +69,12 @@ class ProfileRepositoryImpl implements ProfileRepository {
       'encrypted_dek': profile.encryptedDek,
       'kek_salt': profile.kekSalt,
       'kdf_params': profile.kdfParams,
+      'default_sync_mode': vaultSyncModeToDb(profile.defaultSyncMode),
+      'login_totp_enabled': profile.loginTotpEnabled,
+      'encrypted_login_totp_secret': profile.encryptedLoginTotpSecret,
+      'login_totp_secret_nonce': profile.loginTotpSecretNonce,
+      'encrypted_login_backup_payload': profile.encryptedLoginBackupPayload,
+      'login_backup_payload_nonce': profile.loginBackupPayloadNonce,
     };
     final row = await _client
         .from('profiles')
@@ -128,6 +135,16 @@ class ProfileRepositoryImpl implements ProfileRepository {
       kdfParams: Map<String, dynamic>.from(row['kdf_params'] as Map? ?? {}),
       createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
       updatedAt: DateTime.parse(row['updated_at'] as String).toLocal(),
+      defaultSyncMode: vaultSyncModeFromDb(
+        row['default_sync_mode'] as String? ?? 'cloud',
+      ),
+      loginTotpEnabled: row['login_totp_enabled'] as bool? ?? false,
+      encryptedLoginTotpSecret:
+          row['encrypted_login_totp_secret'] as String?,
+      loginTotpSecretNonce: row['login_totp_secret_nonce'] as String?,
+      encryptedLoginBackupPayload:
+          row['encrypted_login_backup_payload'] as String?,
+      loginBackupPayloadNonce: row['login_backup_payload_nonce'] as String?,
     );
   }
 }

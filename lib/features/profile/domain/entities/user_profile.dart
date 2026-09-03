@@ -1,5 +1,6 @@
 /// Profile entity plus avatar/theme enums. Wrapped DEK fields live on this row.
 import 'package:equatable/equatable.dart';
+import 'package:nucleus/features/vault/domain/entities/vault_sync_mode.dart';
 
 enum AvatarType { preset, custom }
 
@@ -19,6 +20,12 @@ class UserProfile extends Equatable {
     required this.kdfParams,
     required this.createdAt,
     required this.updatedAt,
+    this.defaultSyncMode = VaultSyncMode.cloud,
+    this.loginTotpEnabled = false,
+    this.encryptedLoginTotpSecret,
+    this.loginTotpSecretNonce,
+    this.encryptedLoginBackupPayload,
+    this.loginBackupPayloadNonce,
   });
 
   final String id;
@@ -33,6 +40,12 @@ class UserProfile extends Equatable {
   final Map<String, dynamic> kdfParams;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final VaultSyncMode defaultSyncMode;
+  final bool loginTotpEnabled;
+  final String? encryptedLoginTotpSecret;
+  final String? loginTotpSecretNonce;
+  final String? encryptedLoginBackupPayload;
+  final String? loginBackupPayloadNonce;
 
   UserProfile copyWith({
     String? name,
@@ -43,6 +56,14 @@ class UserProfile extends Equatable {
     String? encryptedDek,
     String? kekSalt,
     Map<String, dynamic>? kdfParams,
+    VaultSyncMode? defaultSyncMode,
+    bool? loginTotpEnabled,
+    String? encryptedLoginTotpSecret,
+    String? loginTotpSecretNonce,
+    bool clearLoginTotpSecret = false,
+    String? encryptedLoginBackupPayload,
+    String? loginBackupPayloadNonce,
+    bool clearLoginBackupPayload = false,
   }) {
     return UserProfile(
       id: id,
@@ -57,6 +78,23 @@ class UserProfile extends Equatable {
       kdfParams: kdfParams ?? this.kdfParams,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      defaultSyncMode: defaultSyncMode ?? this.defaultSyncMode,
+      loginTotpEnabled: loginTotpEnabled ?? this.loginTotpEnabled,
+      encryptedLoginTotpSecret: clearLoginTotpSecret
+          ? null
+          : (encryptedLoginTotpSecret ?? this.encryptedLoginTotpSecret),
+      loginTotpSecretNonce: clearLoginTotpSecret
+          ? null
+          : (loginTotpSecretNonce ?? this.loginTotpSecretNonce),
+      encryptedLoginBackupPayload: clearLoginBackupPayload ||
+              clearLoginTotpSecret
+          ? null
+          : (encryptedLoginBackupPayload ??
+              this.encryptedLoginBackupPayload),
+      loginBackupPayloadNonce: clearLoginBackupPayload ||
+              clearLoginTotpSecret
+          ? null
+          : (loginBackupPayloadNonce ?? this.loginBackupPayloadNonce),
     );
   }
 
@@ -72,6 +110,8 @@ class UserProfile extends Equatable {
         encryptedDek,
         kekSalt,
         themePreference,
+        defaultSyncMode,
+        loginTotpEnabled,
       ];
 }
 

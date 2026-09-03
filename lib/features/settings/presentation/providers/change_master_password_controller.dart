@@ -6,6 +6,7 @@ import 'package:nucleus/core/crypto/vault_crypto_service.dart';
 import 'package:nucleus/core/di/providers.dart';
 import 'package:nucleus/core/errors/app_exception.dart';
 import 'package:nucleus/core/errors/user_facing_error.dart';
+import 'package:nucleus/features/mfa/data/login_mfa_service.dart';
 import 'package:nucleus/features/profile/domain/entities/user_profile.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
 
@@ -139,10 +140,35 @@ class ChangeMasterPasswordController
       kdfParams: newWrap.kdfParams.toJson(),
     );
 
+    var profileToSave = profileWithNewWrap;
+    if (profile.loginTotpEnabled) {
+      final loginMfa = LoginMfaService(crypto);
+      final totpRewrap = await loginMfa.rewrapTotpSecret(
+        oldMasterPassword: currentPassword,
+        newMasterPassword: newPassword,
+        profile: profile,
+      );
+      profileToSave = profileToSave.copyWith(
+        encryptedLoginTotpSecret: totpRewrap.ciphertext,
+        loginTotpSecretNonce: totpRewrap.nonce,
+      );
+      final backupRewrap = await loginMfa.rewrapBackupPayload(
+        oldMasterPassword: currentPassword,
+        newMasterPassword: newPassword,
+        profile: profile,
+      );
+      if (backupRewrap != null) {
+        profileToSave = profileToSave.copyWith(
+          encryptedLoginBackupPayload: backupRewrap.ciphertext,
+          loginBackupPayloadNonce: backupRewrap.nonce,
+        );
+      }
+    }
+
     UserProfile? savedProfile;
     try {
       // Persist wrap first so Auth password and wrap stay recoverable together.
-      savedProfile = await profileRepo.updateProfile(profileWithNewWrap);
+      savedProfile = await profileRepo.updateProfile(profileToSave);
 
       // Refresh Auth session proof with the current password, then rotate it.
       await auth.signIn(email: profile.email, password: currentPassword);

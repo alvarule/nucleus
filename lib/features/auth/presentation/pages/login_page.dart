@@ -6,6 +6,7 @@ import 'package:nucleus/core/responsive/scale.dart';
 import 'package:nucleus/core/theme/app_colors.dart';
 import 'package:nucleus/features/auth/presentation/providers/auth_controller.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
+import 'package:nucleus/features/auth/presentation/providers/pending_login_provider.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
 import 'package:nucleus/shared/widgets/vault_text_field.dart';
 
@@ -40,7 +41,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         );
     if (ok && mounted) {
       final profile = ref.read(vaultSessionProvider).profile;
-      context.go(profile == null ? '/vault-setup' : '/home');
+      final pending = ref.read(pendingLoginPasswordProvider);
+      if (profile == null) {
+        context.go('/vault-setup');
+      } else if (pending != null) {
+        context.go('/login-totp');
+      } else {
+        context.go('/home');
+      }
     }
   }
 

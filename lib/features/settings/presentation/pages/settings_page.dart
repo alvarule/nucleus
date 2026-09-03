@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nucleus/core/di/providers.dart';
+import 'package:nucleus/core/errors/user_facing_error.dart';
 import 'package:nucleus/core/responsive/scale.dart';
 import 'package:nucleus/core/theme/app_colors.dart';
 import 'package:nucleus/features/profile/domain/entities/user_profile.dart';
@@ -10,6 +11,9 @@ import 'package:nucleus/features/settings/domain/security_timeouts.dart';
 import 'package:nucleus/features/settings/presentation/providers/security_preference_provider.dart';
 import 'package:nucleus/features/settings/presentation/providers/theme_preference_provider.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
+import 'package:nucleus/features/vault/domain/entities/vault_sync_mode.dart';
+import 'package:nucleus/features/vault/presentation/providers/vault_list_provider.dart';
+import 'package:nucleus/features/vault/presentation/widgets/vault_sync_dialogs.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
 import 'package:nucleus/shared/widgets/vault_text_field.dart';
 
@@ -70,6 +74,42 @@ class SettingsPage extends ConsumerWidget {
           ),
           SizedBox(height: scale.xl),
           Text(
+            'Sync',
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontWeight: FontWeight.w600,
+              fontSize: scale.fontSm,
+            ),
+          ),
+          SizedBox(height: scale.sm),
+          if (profile != null)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: AppIcon('device', color: colors.primary),
+              title: const Text('Sync new items to cloud'),
+              subtitle: Text(
+                profile.defaultSyncMode == VaultSyncMode.cloud
+                    ? 'New vault items upload to the cloud by default'
+                    : 'New vault items stay on this device only',
+                style: TextStyle(color: colors.textSecondary),
+              ),
+              value: profile.defaultSyncMode == VaultSyncMode.cloud,
+              onChanged: (syncToCloud) => _onDefaultSyncToggle(
+                context,
+                ref,
+                profile,
+                syncToCloud,
+              ),
+            ),
+          Text(
+            'Local-only items are not backed up to the cloud. Encrypted export/import may be added later.',
+            style: TextStyle(
+              color: colors.textTertiary,
+              fontSize: scale.fontSm,
+            ),
+          ),
+          SizedBox(height: scale.xl),
+          Text(
             'Security',
             style: TextStyle(
               color: colors.textSecondary,
@@ -78,6 +118,20 @@ class SettingsPage extends ConsumerWidget {
             ),
           ),
           SizedBox(height: scale.sm),
+          _SecurityTile(
+            icon: 'shield',
+            title: 'App Login MFA',
+            subtitle: profile?.loginTotpEnabled == true
+                ? 'On — required on full sign-in'
+                : 'Off',
+            onTap: () {
+              if (profile?.loginTotpEnabled == true) {
+                context.push('/settings/app-login-mfa');
+              } else {
+                context.push('/settings/app-login-mfa/setup');
+              }
+            },
+          ),
           _SecurityTile(
             icon: 'timer',
             title: 'Auto-lock vault',
@@ -128,6 +182,92 @@ class SettingsPage extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _onDefaultSyncToggle(
+    BuildContext context,
+    WidgetRef ref,
+    UserProfile profile,
+    bool syncToCloud,
+  ) async {
+    final selected =
+        syncToCloud ? VaultSyncMode.cloud : VaultSyncMode.local;
+    if (selected == profile.defaultSyncMode) return;
+    final ok = await confirmGlobalSyncChange(
+      context,
+      from: profile.defaultSyncMode,
+      to: selected,
+    );
+    if (ok != true || !context.mounted) return;
+
+    BulkSyncChoice? bulkChoice;
+    if (profile.defaultSyncMode == VaultSyncMode.local &&
+        selected == VaultSyncMode.cloud) {
+      bulkChoice = await confirmBulkUploadLocalItems(context);
+    } else if (profile.defaultSyncMode == VaultSyncMode.cloud &&
+        selected == VaultSyncMode.local) {
+      bulkChoice = await confirmBulkDeleteCloudItems(context);
+    }
+    if (bulkChoice == null || !context.mounted) return;
+
+    final updated = profile.copyWith(defaultSyncMode: selected);
+    final saved =
+        await ref.read(profileRepositoryProvider).updateProfile(updated);
+    ref.read(vaultSessionProvider.notifier).setProfile(saved);
+
+    if (bulkChoice != BulkSyncChoice.performBulk) return;
+
+    final session = ref.read(vaultSessionProvider);
+    final userId = ref.read(authRepositoryProvider).currentUserId;
+    if (!session.isUnlocked ||
+        session.dek == null ||
+        userId == null ||
+        !context.mounted) {
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const PopScope(
+        canPop: false,
+        child: Center(child: CircularProgressIndicator()),
+      ),
+    );
+
+    try {
+      final repo = ref.read(vaultRepositoryProvider);
+      final result = selected == VaultSyncMode.cloud
+          ? await repo.promoteAllLocalOnlyToCloud(
+              userId: userId,
+              dek: session.dek!,
+            )
+          : await repo.removeAllCloudItemsToLocal(
+              userId: userId,
+              dek: session.dek!,
+            );
+      await ref.read(vaultListProvider.notifier).refresh();
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      final message = result.hasFailures
+          ? 'Default updated. ${result.succeeded} item(s) synced; ${result.failed} failed.'
+          : 'Default updated. ${result.succeeded} item(s) synced.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        final message = await userFacingErrorMessage(
+          ref.read(connectivityServiceProvider),
+          e,
+        );
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
+    }
   }
 
   Future<void> _setTheme(

@@ -1,6 +1,7 @@
 /// Styled text field used across auth, vault, and settings.
 /// Optional [onBeforeReveal] gates unmasking when [enableObscureToggle] is on.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nucleus/core/responsive/scale.dart';
 import 'package:nucleus/core/theme/app_colors.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
@@ -26,6 +27,9 @@ class VaultTextField extends StatefulWidget {
     this.enabled = true,
     this.readOnly = false,
     this.autofocus = false,
+    this.maxLength,
+    this.inputFormatters,
+    this.hideMaxLengthCounter = false,
   });
 
   final TextEditingController controller;
@@ -47,6 +51,9 @@ class VaultTextField extends StatefulWidget {
   final bool enabled;
   final bool readOnly;
   final bool autofocus;
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
+  final bool hideMaxLengthCounter;
 
   @override
   State<VaultTextField> createState() => _VaultTextFieldState();
@@ -140,9 +147,12 @@ class _VaultTextFieldState extends State<VaultTextField> {
           enabled: widget.enabled,
           readOnly: widget.readOnly,
           autofocus: widget.autofocus,
+          maxLength: widget.maxLength,
+          inputFormatters: widget.inputFormatters,
           style: TextStyle(color: colors.textPrimary, fontSize: scale.fontLg),
           decoration: InputDecoration(
             hintText: widget.hint,
+            counterText: widget.hideMaxLengthCounter ? '' : null,
             prefixIconConstraints: BoxConstraints(
               minWidth: scale.s(48),
               minHeight: scale.s(48),

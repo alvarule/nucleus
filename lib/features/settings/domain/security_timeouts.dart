@@ -20,8 +20,8 @@ extension VaultAutoLockOptionX on VaultAutoLockOption {
 
   String get description => switch (this) {
         VaultAutoLockOption.whileUsingApp =>
-          'Stay unlocked until you leave the app',
-        _ => 'Lock after $label of inactivity',
+          'Never lock automatically — use Lock vault now',
+        _ => 'Lock after $label of inactivity (includes time in background)',
       };
 
   /// `null` means never auto-lock while the app is in the foreground.

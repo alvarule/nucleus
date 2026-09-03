@@ -30,6 +30,11 @@ class _UnlockPageState extends ConsumerState<UnlockPage> {
 
   /// Auto-prompts biometrics once per visit when a stored DEK exists.
   Future<void> _prepareBiometrics() async {
+    final session = ref.read(vaultSessionProvider);
+    if (session.signInMfaPending) {
+      if (mounted) setState(() => _bioAvailable = false);
+      return;
+    }
     final can = await ref
         .read(biometricUnlockStoreProvider)
         .canCheckBiometrics();

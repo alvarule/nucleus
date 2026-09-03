@@ -15,7 +15,7 @@ lib/core/crypto/ - Argon2id KEK + AES-256-GCM wrap/payload crypto
 lib/core/di/ - Shared Riverpod providers (client, repos, crypto, biometric store)
 lib/core/errors/ - AppException, OfflineException, friendly offline copy, user-facing error resolver
 lib/core/network/ - Connectivity probe before Supabase calls
-lib/core/lifecycle/ - Background lock observer
+lib/core/lifecycle/ - Resume-time auto-lock check (no lock on background)
 lib/core/theme/ - Hand-authored Rose palette and ThemeData
 lib/core/responsive/ - Width-based layout scale from a 390pt baseline
 lib/features/auth/ - Login/signup, check-email, vault-setup, AuthController, AuthRepository
@@ -24,13 +24,16 @@ lib/features/vault/ - Encrypted CRUD, folders, list/detail/form pages
 lib/features/profile/ - Profile entity, repository impl, profile UI, avatars
 lib/features/settings/ - Theme, auto-lock, reveal grace, change master password
 lib/features/generator/ - Local password generator
-lib/features/health/ - Password health domain (evaluate use case), shared provider, triage UI, badges
+lib/features/attachments/ - Encrypted file chunks in vault-files bucket
+lib/features/mfa/ - Site authenticator + login TOTP (KEK-wrapped)
 lib/shared/widgets/ - Shell, icons, fields, loader, Home skeleton, sensitive-access gate
 assets/animations/ - Brand Lottie used by VaultLoader
 assets/icons/ - SVG icon set referenced by AppIcon
 assets/avatars/ - Preset avatar path used by Profile (see pubspec)
 supabase/migrations/001_initial.sql - profiles, vault_items, RLS, avatars bucket
-supabase/migrations/002_folders.sql - vault_folders, vault_items.folder_id
+supabase/migrations/003_attachments.sql - vault_attachments, document type, vault-files bucket
+supabase/migrations/004_sync.sql - profiles.default_sync_mode, vault_items.sync_mode
+supabase/migrations/005_mfa.sql - login TOTP columns, mfa_entries
 pubspec.yaml - Dependencies and asset declarations
 .env - SUPABASE_URL + publishable/anon key (loaded at startup)
 ```
@@ -39,7 +42,7 @@ pubspec.yaml - Dependencies and asset declarations
 
 ### Authentication
 
-* **What it does:** Signup is name + email only (`signInWithOtp` magic/confirmation link). After the user opens `nucleus://login-callback`, `/vault-setup` sets the master password (`updateUser`), generates and wraps a DEK, writes `profiles`, caches the DEK for biometrics, and opens an unlocked session. Returning users sign in with email + master password. Logout signs out Auth and clears the device DEK. An unconfirmed email that signs up again just receives another OTP.
+* **What it does:** Signup is name + email only (`signInWithOtp` magic/confirmation link). After the user opens `nucleus://login-callback`, `/vault-setup` sets the master password (`updateUser`), generates and wraps a DEK, writes `profiles`, caches the DEK for biometrics, and opens an unlocked session. Returning users sign in with email + master password; optional **App Login MFA** (`/login-totp`, TOTP or backup code) when `login_totp_enabled` on the profile. **Unlock** (`/unlock`, biometric or master password) does not require MFA when the user already has a Supabase session. Logout signs out Auth and clears the device DEK.
 * **Files involved:**
   * `lib/features/auth/presentation/pages/login_page.dart`
   * `lib/features/auth/presentation/pages/signup_page.dart`
@@ -53,7 +56,7 @@ pubspec.yaml - Dependencies and asset declarations
 
 ### Vault session and unlock
 
-* **What it does:** After Auth, the vault stays locked until the DEK is unwrapped (master password) or read from secure storage (biometrics). Lock drops the in-memory DEK; profile metadata can remain for the unlock screen. Foreground inactivity auto-lock and background pause lock are both implemented.
+* **What it does:** After Auth, the vault stays locked until the DEK is unwrapped (master password) or read from secure storage (biometrics). Lock drops the in-memory DEK; profile metadata can remain for the unlock screen. Auto-lock uses wall-clock inactivity (including time in background); app pause and screen-off do not lock immediately.
 * **Files involved:**
   * `lib/features/unlock/presentation/pages/unlock_page.dart`
   * `lib/features/unlock/presentation/providers/vault_session_provider.dart`
@@ -61,11 +64,11 @@ pubspec.yaml - Dependencies and asset declarations
   * `lib/core/lifecycle/vault_lifecycle_observer.dart`
   * `lib/app.dart`
   * `lib/router/app_router.dart`
-* **Key decisions:** Master password is never stored. Biometric unlock stores a hex-encoded DEK in `FlutterSecureStorage` keyed by user id. Unlock auto-prompts biometrics once if a DEK exists. Lifecycle lock runs on `AppLifecycleState.paused` but skips while a biometric prompt is showing (`isAuthenticating`). Router redirects signed-in+profile+locked users to `/unlock`; signed-in with no profile to `/vault-setup`. `profileResolved` distinguishes “profile not loaded” from “no profile row”. GoRouter refresh listens to session status, profile resolution, and Auth events so reveal-grace updates do not drop `extra` on edit routes.
+* **Key decisions:** Master password is never stored. Biometric unlock stores a hex-encoded DEK in `FlutterSecureStorage` keyed by user id. Unlock auto-prompts biometrics once if a DEK exists. On `AppLifecycleState.resumed`, `onAppResumed` re-evaluates auto-lock (timers may not run while paused). Router redirects signed-in+profile+locked users to `/unlock`; signed-in with no profile to `/vault-setup`. `profileResolved` distinguishes “profile not loaded” from “no profile row”. GoRouter refresh listens to session status, profile resolution, and Auth events so reveal-grace updates do not drop `extra` on edit routes.
 
 ### Encrypted vault
 
-* **What it does:** CRUD for four item types (`password`, `bank_account`, `atm_card`, `note`). Field maps are JSON-encrypted with the DEK before insert/update. Items may belong to a single-level folder (`folder_id`, null = Uncategorized). The home list searches globally, filters by type, groups by folder, and sorts within each section.
+* **What it does:** CRUD for five item types (`password`, `bank_account`, `atm_card`, `note`, `document`). Field maps are JSON-encrypted with the DEK before insert/update. Items may belong to a single-level folder (`folder_id`, null = Uncategorized). **Sync:** `profiles.default_sync_mode` sets the default for new items; each row has `sync_mode` (`cloud` | `local`). Local-only items live in Drift (`LocalVaultDatabase`); cloud items in Supabase. Composite `VaultRepositoryImpl` merges lists by id. Item form **Sync to Cloud** is draft until **Save** (promote/demote on save). Settings default change uses two steps (`vault_sync_dialogs.dart`): confirm default, then optional bulk upload of local-only items or bulk removal from cloud. `CloudSyncExclusionStore` remains for legacy “leave in cloud” exclusions on list only.
 * **Files involved:**
   * `lib/features/vault/domain/entities/vault_item.dart`
   * `lib/features/vault/domain/entities/vault_folder.dart`
@@ -73,7 +76,10 @@ pubspec.yaml - Dependencies and asset declarations
   * `lib/features/vault/domain/vault_sort.dart`
   * `lib/features/vault/domain/repositories/vault_repository.dart`
   * `lib/features/vault/domain/repositories/folder_repository.dart`
-  * `lib/features/vault/data/repositories/vault_repository_impl.dart`
+  * `lib/features/vault/data/repositories/cloud_vault_repository.dart`
+  * `lib/features/vault/data/repositories/local_vault_repository.dart`
+  * `lib/features/vault/data/local/local_vault_database.dart`
+  * `lib/features/vault/presentation/widgets/vault_sync_dialogs.dart`
   * `lib/features/vault/data/repositories/folder_repository_impl.dart`
   * `lib/features/vault/presentation/providers/vault_list_provider.dart`
   * `lib/features/vault/presentation/pages/vault_home_page.dart`
@@ -82,7 +88,7 @@ pubspec.yaml - Dependencies and asset declarations
   * `lib/features/vault/presentation/widgets/folder_sheets.dart`
   * `lib/features/vault/domain/password_field_helpers.dart`
   * `lib/shared/widgets/vault_home_skeleton.dart`
-* **Key decisions:** AES-GCM additional authenticated data is `id:itemType` so ciphertext cannot be moved between rows. Folder names are plaintext metadata. Delete folder uses ON DELETE SET NULL (items become Uncategorized). New items default to Uncategorized. Home uses `CustomScrollView` with `SliverStickyHeader` per folder (`flutter_sticky_header`) so headers stick and push in one scroll column, plus per-item `SliverList` children (jump-to-folder via header keys). `showFolderPickerSheet` uses `FolderPickerSelection.destination` for bulk move (no highlight) vs `.current` on the item form. Long-press on items enters multi-select; Move uses the folder picker and bulk-updates `folder_id`. Home sort is device-local SharedPreferences. Initial Home load uses a full-page shimmer (`VaultHomeSkeleton`); pull-to-refresh does not. Health badges on Home hide when `primaryFlag == fine`. Edit route `/vault/edit/:id` requires `extra` as a `VaultItem` or a map with `item` + optional `prefill`. After save, the app `go`s to `/home` then `push`es detail. Password items store `password_changed_at` in the encrypted payload.
+* **Key decisions:** AES-GCM additional authenticated data is `id:itemType` so ciphertext cannot be moved between rows. Folder names are plaintext metadata. Delete folder uses ON DELETE SET NULL (items become Uncategorized). New items default to Uncategorized. `VaultListNotifier` listens to vault session: clears decrypted rows on lock, calls `refresh()` when the vault unlocks; `refresh()` no-ops while locked without wiping cached list state. Home uses `CustomScrollView` with `SliverStickyHeader` per folder (`flutter_sticky_header`) so headers stick and push in one scroll column, plus per-item `SliverList` children (jump-to-folder via header keys). `showFolderPickerSheet` uses `FolderPickerSelection.destination` for bulk move (no highlight) vs `.current` on the item form. Long-press on items enters multi-select; Move uses the folder picker and bulk-updates `folder_id`. Home sort is device-local SharedPreferences. Initial Home load uses a full-page shimmer (`VaultHomeSkeleton`); pull-to-refresh does not. Health badges on Home hide when `primaryFlag == fine`. Edit route `/vault/edit/:id` requires `extra` as a `VaultItem` or a map with `item` + optional `prefill`. After save, the app `go`s to `/home` then `push`es detail. Password items store `password_changed_at` in the encrypted payload.
 
 ### Offline connectivity
 
@@ -118,10 +124,11 @@ pubspec.yaml - Dependencies and asset declarations
 
 ### Settings
 
-* **What it does:** Light/dark/system appearance (persisted on `profiles.theme_preference`), auto-lock timeout, reveal-grace timeout, password age threshold (90 or 180 days for Health “Old” filter), change master password, lock now, logout.
+* **What it does:** Light/dark/system appearance (persisted on `profiles.theme_preference`), **default sync mode for new items** (cloud vs local on profile), **login two-factor (TOTP)** setup at `/settings/login-mfa-setup`, auto-lock timeout, reveal-grace timeout, password age threshold (90 or 180 days for Health “Old” filter), change master password, lock now, logout.
 * **Files involved:**
   * `lib/features/settings/presentation/pages/settings_page.dart`
   * `lib/features/settings/presentation/pages/change_master_password_page.dart`
+  * `lib/features/settings/presentation/pages/login_mfa_setup_page.dart`
   * `lib/features/settings/presentation/providers/theme_preference_provider.dart`
   * `lib/features/settings/presentation/providers/security_preference_provider.dart`
   * `lib/features/settings/presentation/providers/change_master_password_controller.dart`
@@ -150,9 +157,28 @@ pubspec.yaml - Dependencies and asset declarations
   * `lib/features/vault/domain/password_field_helpers.dart`
 * **Key decisions:** Health logic lives in `health/domain` and is consumed by both `health` and `vault` presentation via `passwordHealthProvider`. `password_changed_at` (encrypted payload field) drives the Old filter; missing values fall back to `updated_at`. List rows use `{label} — {username|url host}` with date disambiguation on collision. Fix flow uses root overlay `/generator/fix` so the Generator tab stays clean.
 
+### Attachments and documents
+
+* **What it does:** Client-encrypted files in private `vault-files` bucket (`vault_attachments` metadata). Chunks use DEK + AAD `attachment_id:chunk_index`; metadata JSON is DEK-encrypted. `document` item type (label, notes, requires ≥1 attachment). `AttachmentsSection` on vault form and detail (open/download on detail); pending files on create upload after save. Uploads require cloud sync mode.
+* **Files involved:**
+  * `lib/features/attachments/**`
+  * `lib/shared/widgets/attachments_section.dart`
+  * `supabase/migrations/003_attachments.sql`
+* **Key decisions:** Plaintext > 5 MB splits into ~4 MB chunks before encrypt. Local-only vault items cannot upload attachments until synced to cloud. **Open** decrypts to a temp file and uses a platform channel (`ACTION_VIEW` + chooser on Android, document interaction on iOS), not the share sheet.
+
+### MFA (site authenticator + App Login MFA)
+
+* **What it does:** **App Login MFA** — optional second step on **full sign-in only** (`/login` → `/login-totp`); app-generated enrollment QR at `/settings/app-login-mfa/setup`; KEK-wrapped TOTP secret and hashed backup codes on `profiles`; one-time backup display with regenerate flow on manage screen; disable requires master password + TOTP or backup. **Unlock** never prompts for MFA. **MFA tab** — `mfa_entries` cloud-synced; home-style search on issuer and account; QR scan with framed overlay (`OtpAuthUri` parses issuer/account/secret); manual add requires issuer + secret; grouped list; detail with live TOTP, editable account, copy, confirmed delete; add via `/mfa/new` or `/mfa/scan`.
+* **Files involved:**
+  * `lib/features/mfa/**` (`login_mfa_service.dart`)
+  * `lib/features/settings/presentation/pages/app_login_mfa_pages.dart`
+  * `lib/features/auth/presentation/pages/login_totp_page.dart`
+  * `supabase/migrations/005_mfa.sql`, `006_login_mfa_backup.sql`
+* **Key decisions:** Site MFA uses vault DEK; App Login MFA uses KEK only. Backup codes stored as SHA-256 hashes; shown once at setup/regenerate (not re-viewable). Incomplete sign-in MFA persists only for the current process (in-memory password + store flag); after restart, auth is reset and user signs in from email/password again. Unlock and biometrics refuse while sign-in MFA is pending in-session. Login TOTP verification spans submit→verify time steps plus ±2. Account recovery without authenticator and backup codes is an acknowledged ZK gap (no email reset).
+
 ### Theming, shell, and platform hardening
 
-* **What it does:** Rose vault light/dark themes, bottom-nav shell (Home, Generator, Health, Settings), scaled layout, SVG icons, Lottie loader, and screenshot leakage protection at process start.
+* **What it does:** Rose vault light/dark themes, bottom-nav shell (Home, MFA, Generator, Health, Settings), scaled layout, SVG icons, Lottie loader, and screenshot leakage protection at process start.
 * **Files involved:**
   * `lib/core/theme/app_theme.dart`
   * `lib/core/theme/app_colors.dart`
@@ -257,8 +283,8 @@ ChangeMasterPasswordPage → ChangeMasterPasswordController
 ### Lock and logout
 
 ```text
-Background paused (not during biometric) → VaultSessionNotifier.lock (drop DEK)
-Inactivity timer (SharedPreferences auto-lock) → lock
+Inactivity timer (SharedPreferences auto-lock, wall-clock) → lock
+App resumed → re-check inactivity (same rules)
 Settings “Lock vault now” → lock → /unlock
 Logout → clearDek + Auth.signOut → empty session → /login
 ```
@@ -278,13 +304,16 @@ Pointer-down on the root `Listener` calls `touchActivity` to reset the inactivit
 | Change master password re-wraps DEK; does not re-encrypt items | DEK is unchanged, so vault rows and biometric DEK stay valid | Current implementation |
 | Persist new wrap before Auth password update, rollback wrap on Auth failure | Avoids Auth password and wrap diverging | Current implementation |
 | Auto-lock / reveal-grace in SharedPreferences; theme on `profiles` | Timers are device-local; appearance should follow the user | Current implementation |
-| Lock on `paused`, skip while `isAuthenticating` | Background lock without killing the biometric sheet | Current implementation |
+| Auto-lock on wall-clock inactivity only (not on `paused`); resume re-check | Lets system pickers (attachments, gallery) background the app without losing the DEK session; DEK may stay in memory until timeout | 2026-09-03 |
 | Placeholder Supabase init when `.env` is unset | UI can start in tests/dev; real Auth/vault calls fail until configured | Current implementation |
 | Hand-authored `AppColors` / `ColorScheme`, not `fromSeed` | Keep brand rose exact | Current implementation |
 | Signup is name+email OTP; master password set on `/vault-setup` after confirm | Avoid collecting a password before the email is verified; same setup path can later serve Google OAuth | 2026-09-01 |
 | Single-level plaintext `vault_folders`; items `folder_id` ON DELETE SET NULL | Organization without encrypting folder names or deleting items with a folder | 2026-09-01 |
 | Home full-page shimmer until first vault fetch; no interaction during load | Prevents search/sort racing an empty list | 2026-09-01 |
 | Home health badge hidden when `primaryFlag` is fine | Surface only weak/reused/old on the list | 2026-09-01 |
-| `StatefulShellRoute` + Home-rooted back | Double-back exits only on Home; other tabs return Home first | Current implementation |
+| Drift local vault + composite repository; sync draft on form until Save; settings bulk opt-in | Cloud-first default; local-only has no cloud backup; destructive sync only after Save or explicit bulk Confirm | 2026-09-03 Phase 3; revised defer-save UX |
+| Login TOTP on KEK; site MFA on DEK; MFA tab always cloud | One key system; codes survive device loss for authenticator entries | 2026-09-03 Phase 3 |
+| App Login MFA only on `/login` sign-in, not on `/unlock` | Returning users with a session unlock with biometric/password only; MFA adds factor at credential entry | 2026-09-03 |
+| Five-tab shell (MFA between Home and Generator) | Plan navigation; back behavior unchanged | 2026-09-03 Phase 3 |
 | `ScreenProtector.protectDataLeakageOn()` at startup | Block screenshots/screen recording where the plugin supports it | Current implementation |
 | `connectivity_plus` preflight + random friendly offline copy | Network calls fail fast offline; users see warm rotating messages instead of raw socket errors | 2026-09-01 |

@@ -1,46 +1,59 @@
-/// Encrypts/decrypts vault payloads client-side, then talks to `vault_items`.
-import 'dart:convert';
+/// Merges cloud Supabase items with Drift local-only rows by id.
 import 'dart:typed_data';
 
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:uuid/uuid.dart';
-import 'package:nucleus/core/crypto/vault_crypto_service.dart';
-import 'package:nucleus/core/errors/app_exception.dart';
-import 'package:nucleus/core/errors/offline_messages.dart';
-import 'package:nucleus/core/network/connectivity_service.dart';
+import 'package:nucleus/features/vault/data/local/cloud_sync_exclusion_store.dart';
+import 'package:nucleus/features/vault/data/repositories/cloud_vault_repository.dart';
+import 'package:nucleus/features/vault/data/repositories/local_vault_repository.dart';
+import 'package:nucleus/features/vault/domain/entities/vault_bulk_sync_result.dart';
 import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
+import 'package:nucleus/features/vault/domain/entities/vault_sync_mode.dart';
 import 'package:nucleus/features/vault/domain/repositories/vault_repository.dart';
 
 class VaultRepositoryImpl implements VaultRepository {
-  VaultRepositoryImpl(this._client, this._crypto, this._connectivity);
+  VaultRepositoryImpl({
+    required CloudVaultRepository cloud,
+    required LocalVaultRepository local,
+    required CloudSyncExclusionStore exclusions,
+  })  : _cloud = cloud,
+        _local = local,
+        _exclusions = exclusions;
 
-  final SupabaseClient _client;
-  final VaultCryptoService _crypto;
-  final ConnectivityService _connectivity;
-  final _uuid = const Uuid();
-
-  Future<void> _ensureOnline() async {
-    if (!await _connectivity.hasConnection()) {
-      throw OfflineException(randomOfflineMessage());
-    }
-  }
+  final CloudVaultRepository _cloud;
+  final LocalVaultRepository _local;
+  final CloudSyncExclusionStore _exclusions;
 
   @override
   Future<List<VaultItem>> listItems({
     required String userId,
     required Uint8List dek,
   }) async {
-    await _ensureOnline();
-    final rows = await _client
-        .from('vault_items')
-        .select()
-        .eq('user_id', userId)
-        .order('updated_at', ascending: false);
-    final items = <VaultItem>[];
-    for (final row in rows as List) {
-      items.add(await _decrypt(Map<String, dynamic>.from(row as Map), dek));
+    final excluded = await _exclusions.loadExcludedIds(userId);
+    List<VaultItem> local = [];
+    try {
+      local = await _local.listItems(userId: userId, dek: dek);
+    } catch (_) {
+      // Drift unavailable or bulk failure — still attempt cloud.
     }
-    return items;
+    List<VaultItem> cloud = [];
+    try {
+      cloud = await _cloud.listItems(
+        userId: userId,
+        dek: dek,
+        excludedIds: excluded,
+      );
+    } catch (_) {
+      // Offline: still show local items.
+    }
+    final byId = <String, VaultItem>{};
+    for (final item in cloud) {
+      byId[item.id] = item;
+    }
+    for (final item in local) {
+      byId[item.id] = item;
+    }
+    final merged = byId.values.toList();
+    merged.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return merged;
   }
 
   @override
@@ -48,10 +61,11 @@ class VaultRepositoryImpl implements VaultRepository {
     required String id,
     required Uint8List dek,
   }) async {
-    await _ensureOnline();
-    final row =
-        await _client.from('vault_items').select().eq('id', id).single();
-    return _decrypt(row, dek);
+    final local = await _local.getItem(id: id, dek: dek);
+    if (local != null) return local;
+    final cloud = await _cloud.getItem(id: id, dek: dek);
+    if (cloud != null) return cloud;
+    throw StateError('Vault item not found');
   }
 
   @override
@@ -61,27 +75,26 @@ class VaultRepositoryImpl implements VaultRepository {
     required Map<String, dynamic> fields,
     required Uint8List dek,
     String? folderId,
+    VaultSyncMode? syncMode,
   }) async {
-    await _ensureOnline();
-    final id = _uuid.v4();
-    // AAD ties ciphertext to this row so it cannot be copied onto another item.
-    final aad = utf8.encode('$id:${type.dbValue}');
-    final blob = await _crypto.encryptPayload(
+    final mode = syncMode ?? VaultSyncMode.cloud;
+    if (mode == VaultSyncMode.local) {
+      return _local.createItem(
+        userId: userId,
+        type: type,
+        fields: fields,
+        dek: dek,
+        folderId: folderId,
+      );
+    }
+    return _cloud.createItem(
+      userId: userId,
+      type: type,
+      fields: fields,
       dek: dek,
-      plaintextJson: jsonEncode(fields),
-      aad: aad,
+      folderId: folderId,
+      syncMode: VaultSyncMode.cloud,
     );
-    final payload = {
-      'id': id,
-      'user_id': userId,
-      'item_type': type.dbValue,
-      'encrypted_payload': blob.ciphertextBase64,
-      'nonce': blob.nonceBase64,
-      'folder_id': folderId,
-    };
-    final row =
-        await _client.from('vault_items').insert(payload).select().single();
-    return _decrypt(row, dek);
   }
 
   @override
@@ -89,59 +102,145 @@ class VaultRepositoryImpl implements VaultRepository {
     required VaultItem item,
     required Uint8List dek,
   }) async {
-    await _ensureOnline();
-    final aad = utf8.encode('${item.id}:${item.type.dbValue}');
-    final blob = await _crypto.encryptPayload(
-      dek: dek,
-      plaintextJson: jsonEncode(item.fields),
-      aad: aad,
-    );
-    final payload = {
-      'encrypted_payload': blob.ciphertextBase64,
-      'nonce': blob.nonceBase64,
-      'folder_id': item.folderId,
-    };
-    final row = await _client
-        .from('vault_items')
-        .update(payload)
-        .eq('id', item.id)
-        .select()
-        .single();
-    return _decrypt(row, dek);
+    if (item.syncMode == VaultSyncMode.local) {
+      return _local.updateItem(item: item, dek: dek);
+    }
+    return _cloud.updateItem(item: item, dek: dek);
   }
 
   @override
-  Future<void> deleteItem(String id) async {
-    await _ensureOnline();
-    await _client.from('vault_items').delete().eq('id', id);
+  Future<void> deleteItem(String id, {VaultSyncMode? syncMode}) async {
+    if (syncMode == VaultSyncMode.local) {
+      await _local.deleteItem(id);
+      return;
+    }
+    if (syncMode == VaultSyncMode.cloud) {
+      await _cloud.deleteItem(id);
+      return;
+    }
+    try {
+      await _local.deleteItem(id);
+    } catch (_) {}
+    try {
+      await _cloud.deleteItem(id);
+    } catch (_) {}
   }
 
-  /// Decrypts one `vault_items` row. Failures become [VaultException], not raw crypto errors.
-  Future<VaultItem> _decrypt(Map<String, dynamic> row, Uint8List dek) async {
-    try {
-      final id = row['id'] as String;
-      final type = VaultItemTypeX.fromDb(row['item_type'] as String);
-      final aad = utf8.encode('$id:${type.dbValue}');
-      final json = await _crypto.decryptPayload(
-        dek: dek,
-        blob: EncryptedBlob(
-          ciphertextBase64: row['encrypted_payload'] as String,
-          nonceBase64: row['nonce'] as String,
-        ),
-        aad: aad,
-      );
-      final fields = Map<String, dynamic>.from(jsonDecode(json) as Map);
-      return VaultItem(
-        id: id,
-        userId: row['user_id'] as String,
-        type: type,
-        fields: fields,
-        createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
-        updatedAt: DateTime.parse(row['updated_at'] as String).toLocal(),
-        folderId: row['folder_id'] as String?,
-      );
-    } catch (e) {
-      throw VaultException('Failed to decrypt vault item', cause: e);
+  @override
+  Future<VaultItem> moveCloudToLocal({
+    required VaultItem cloudItem,
+    required Uint8List dek,
+    required bool deleteFromCloud,
+  }) async {
+  final userId = cloudItem.userId;
+    if (deleteFromCloud) {
+      await _cloud.deleteItem(cloudItem.id);
+      await _exclusions.removeExcluded(userId, cloudItem.id);
+    } else {
+      await _exclusions.addExcluded(userId, cloudItem.id);
     }
+    final local = await _local.createItem(
+      userId: userId,
+      type: cloudItem.type,
+      fields: cloudItem.fields,
+      dek: dek,
+      folderId: cloudItem.folderId,
+      id: deleteFromCloud ? cloudItem.id : null,
+    );
+    return local;
+  }
+
+  @override
+  Future<VaultItem> moveLocalToCloud({
+    required VaultItem localItem,
+    required Uint8List dek,
+    required bool uploadNow,
+  }) async {
+    if (!uploadNow) {
+      return localItem;
+    }
+    final existingCloud =
+        await _cloud.getItem(id: localItem.id, dek: dek);
+    if (existingCloud != null) {
+      await _local.deleteItem(localItem.id);
+      return existingCloud;
+    }
+    final cloud = await _cloud.createItem(
+      userId: localItem.userId,
+      type: localItem.type,
+      fields: localItem.fields,
+      dek: dek,
+      folderId: localItem.folderId,
+      syncMode: VaultSyncMode.cloud,
+      id: localItem.id,
+    );
+    await _local.deleteItem(localItem.id);
+    return cloud;
+  }
+
+  @override
+  Future<VaultBulkSyncResult> promoteAllLocalOnlyToCloud({
+    required String userId,
+    required Uint8List dek,
+  }) async {
+    var succeeded = 0;
+    var failed = 0;
+    var skipped = 0;
+    List<VaultItem> localItems;
+    try {
+      localItems = await _local.listItems(userId: userId, dek: dek);
+    } catch (_) {
+      return const VaultBulkSyncResult(succeeded: 0, failed: 0, skipped: 0);
+    }
+    for (final item in localItems) {
+      try {
+        final inCloud = await _cloud.getItem(id: item.id, dek: dek);
+        if (inCloud != null) {
+          skipped++;
+          continue;
+        }
+        await moveLocalToCloud(localItem: item, dek: dek, uploadNow: true);
+        succeeded++;
+      } catch (_) {
+        failed++;
+      }
+    }
+    return VaultBulkSyncResult(
+      succeeded: succeeded,
+      failed: failed,
+      skipped: skipped,
+    );
+  }
+
+  @override
+  Future<VaultBulkSyncResult> removeAllCloudItemsToLocal({
+    required String userId,
+    required Uint8List dek,
+  }) async {
+    var succeeded = 0;
+    var failed = 0;
+    List<VaultItem> cloudItems;
+    try {
+      cloudItems = await _cloud.listItems(userId: userId, dek: dek);
+    } catch (_) {
+      return const VaultBulkSyncResult(succeeded: 0, failed: 1, skipped: 0);
+    }
+    for (final item in cloudItems) {
+      try {
+        await moveCloudToLocal(
+          cloudItem: item,
+          dek: dek,
+          deleteFromCloud: true,
+        );
+        succeeded++;
+      } catch (_) {
+        failed++;
+      }
+    }
+    return VaultBulkSyncResult(
+      succeeded: succeeded,
+      failed: failed,
+      skipped: 0,
+    );
   }
 }

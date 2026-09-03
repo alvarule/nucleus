@@ -447,6 +447,18 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
             ? const VaultHomeSkeleton()
             : Column(
                 children: [
+                  if (state.error != null)
+                    MaterialBanner(
+                      content: Text(state.error!),
+                      actions: [
+                        TextButton(
+                          onPressed: () => ref
+                              .read(vaultListProvider.notifier)
+                              .refresh(),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
                   Padding(
                     padding: EdgeInsets.fromLTRB(
                       scale.md,

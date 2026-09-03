@@ -11,7 +11,10 @@ import 'package:nucleus/features/vault/domain/entities/vault_folder.dart';
 import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
 import 'package:nucleus/features/vault/domain/password_field_helpers.dart';
 import 'package:nucleus/features/vault/presentation/providers/vault_list_provider.dart';
+import 'package:nucleus/features/attachments/domain/entities/pending_attachment.dart';
+import 'package:nucleus/features/vault/domain/entities/vault_sync_mode.dart';
 import 'package:nucleus/features/vault/presentation/widgets/folder_sheets.dart';
+import 'package:nucleus/shared/widgets/attachments_section.dart';
 import 'package:nucleus/shared/widgets/app_icon.dart';
 import 'package:nucleus/shared/widgets/sensitive_access.dart';
 import 'package:nucleus/shared/widgets/vault_text_field.dart';
@@ -40,6 +43,11 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
   String? _accountType = 'savings';
   String? _cardType = 'debit';
   String? _folderId;
+  VaultSyncMode _syncMode = VaultSyncMode.cloud;
+  VaultSyncMode? _savedSyncMode;
+  bool _syncInitialized = false;
+  List<PendingAttachment> _pendingAttachments = [];
+  int _uploadedAttachmentCount = 0;
 
   @override
   void initState() {
@@ -56,6 +64,18 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
     _accountType = initial['account_type'] as String? ?? 'savings';
     _cardType = initial['card_type'] as String? ?? 'debit';
     _folderId = widget.existing?.folderId;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_syncInitialized) {
+      _syncInitialized = true;
+      _syncMode = widget.existing?.syncMode ??
+          ref.read(vaultSessionProvider).profile?.defaultSyncMode ??
+          VaultSyncMode.cloud;
+      _savedSyncMode = widget.existing?.syncMode;
+    }
   }
 
   @override
@@ -92,6 +112,7 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
             'notes',
           ],
         VaultItemType.note => ['label', 'notes'],
+        VaultItemType.document => ['label', 'notes'],
       };
 
   Set<String> get _required => switch (widget.type) {
@@ -111,6 +132,7 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
             'expiry_date',
           },
         VaultItemType.note => {'label', 'notes'},
+        VaultItemType.document => {'label'},
       };
 
   Set<String> get _sensitive => {
@@ -263,6 +285,28 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
                 ),
                 SizedBox(height: scale.md),
               ],
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Sync to Cloud'),
+                subtitle: Text(
+                  _syncSubtitle(),
+                  style: TextStyle(color: colors.textSecondary),
+                ),
+                value: _syncMode == VaultSyncMode.cloud,
+                activeThumbColor: colors.primary,
+                onChanged: _saving ? null : _onSyncToggle,
+              ),
+              SizedBox(height: scale.md),
+              AttachmentsSection(
+                vaultItemId: widget.existing?.id,
+                syncMode: _syncMode,
+                pendingFiles: _pendingAttachments,
+                onPendingFilesChanged: (files) =>
+                    setState(() => _pendingAttachments = files),
+                onAttachmentIdsChanged: (ids) =>
+                    _uploadedAttachmentCount = ids.length,
+              ),
+              SizedBox(height: scale.md),
               PrimaryButton(
                 label: isEdit ? 'Save changes' : 'Save to vault',
                 loading: _saving,
@@ -278,6 +322,27 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
   /// Persists encrypted fields then lands on detail with Home still under it.
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (widget.type == VaultItemType.document) {
+      final total = _uploadedAttachmentCount + _pendingAttachments.length;
+      if (total < 1) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Add at least one attachment for a document.'),
+          ),
+        );
+        return;
+      }
+      if (_syncMode == VaultSyncMode.local) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Documents need Sync to Cloud for attachments.'),
+          ),
+        );
+        return;
+      }
+    }
+
     final session = ref.read(vaultSessionProvider);
     final userId = ref.read(authRepositoryProvider).currentUserId;
     if (!session.isUnlocked || session.dek == null || userId == null) return;
@@ -308,14 +373,31 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
       final repo = ref.read(vaultRepositoryProvider);
       final VaultItem saved;
       if (widget.existing != null) {
-        saved = await repo.updateItem(
-          item: widget.existing!.copyWith(
-            fields: fields,
-            folderId: _folderId,
-            clearFolderId: _folderId == null,
-          ),
-          dek: session.dek!,
+        var working = widget.existing!.copyWith(
+          fields: fields,
+          folderId: _folderId,
+          clearFolderId: _folderId == null,
+          syncMode: _syncMode,
         );
+        final savedMode = _savedSyncMode ?? widget.existing!.syncMode;
+        if (_syncMode != savedMode) {
+          if (savedMode == VaultSyncMode.local &&
+              _syncMode == VaultSyncMode.cloud) {
+            working = await repo.moveLocalToCloud(
+              localItem: working,
+              dek: session.dek!,
+              uploadNow: true,
+            );
+          } else if (savedMode == VaultSyncMode.cloud &&
+              _syncMode == VaultSyncMode.local) {
+            working = await repo.moveCloudToLocal(
+              cloudItem: working,
+              dek: session.dek!,
+              deleteFromCloud: true,
+            );
+          }
+        }
+        saved = await repo.updateItem(item: working, dek: session.dek!);
       } else {
         saved = await repo.createItem(
           userId: userId,
@@ -323,7 +405,17 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
           fields: fields,
           dek: session.dek!,
           folderId: _folderId,
+          syncMode: _syncMode,
         );
+        if (_pendingAttachments.isNotEmpty) {
+          await uploadPendingAttachments(
+            ref: ref,
+            userId: userId,
+            vaultItemId: saved.id,
+            dek: session.dek!,
+            pending: _pendingAttachments,
+          );
+        }
       }
       await ref.read(vaultListProvider.notifier).refresh();
       if (!mounted) return;
@@ -349,6 +441,29 @@ class _VaultItemFormPageState extends ConsumerState<VaultItemFormPage> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  String _syncSubtitle() {
+    if (widget.existing != null &&
+        _savedSyncMode != null &&
+        _syncMode != _savedSyncMode) {
+      if (_syncMode == VaultSyncMode.cloud) {
+        return 'Will upload to the cloud when you save';
+      }
+      return 'Will remove the cloud copy when you save';
+    }
+    if (_syncMode == VaultSyncMode.cloud) {
+      return 'Backed up and available on your other devices';
+    }
+    return 'Stored only on this device';
+  }
+
+  void _onSyncToggle(bool? syncToCloud) {
+    if (syncToCloud == null || _saving) return;
+    setState(() {
+      _syncMode =
+          syncToCloud ? VaultSyncMode.cloud : VaultSyncMode.local;
+    });
   }
 }
 

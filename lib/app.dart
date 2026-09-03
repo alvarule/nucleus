@@ -1,4 +1,4 @@
-/// Root MaterialApp: theme, routing, background lock, and auto-lock activity.
+/// Root MaterialApp: theme, routing, resume auto-lock check, and activity tracking.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nucleus/core/lifecycle/vault_lifecycle_observer.dart';
@@ -16,7 +16,7 @@ class NucleusApp extends ConsumerStatefulWidget {
 }
 
 class _NucleusAppState extends ConsumerState<NucleusApp> {
-  /// Locks the in-memory DEK when the process is backgrounded.
+  /// Re-evaluates auto-lock when the process returns to foreground.
   late final VaultLifecycleObserver _observer;
 
   @override

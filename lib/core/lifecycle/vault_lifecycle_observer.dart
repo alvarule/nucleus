@@ -1,10 +1,9 @@
-/// Background lock: clears the in-memory DEK when the app is fully paused.
+/// Re-checks auto-lock when the app returns to foreground (timers may stall while paused).
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nucleus/core/di/providers.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
 
-/// Locks the vault when the app goes to background.
+/// Applies wall-clock auto-lock on resume; does not lock on background or screen off.
 class VaultLifecycleObserver extends WidgetsBindingObserver {
   VaultLifecycleObserver(this._ref);
 
@@ -12,13 +11,8 @@ class VaultLifecycleObserver extends WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Lock only when fully backgrounded so biometric sheets are not interrupted.
-    if (state == AppLifecycleState.paused) {
-      if (_ref.read(biometricUnlockStoreProvider).isAuthenticating) return;
-      final session = _ref.read(vaultSessionProvider);
-      if (session.isUnlocked) {
-        _ref.read(vaultSessionProvider.notifier).lock();
-      }
+    if (state == AppLifecycleState.resumed) {
+      _ref.read(vaultSessionProvider.notifier).onAppResumed();
     }
   }
 }

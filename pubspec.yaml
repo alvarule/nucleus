@@ -29,12 +29,23 @@ dependencies:
   app_links: ^6.4.0
   connectivity_plus: ^7.3.1
   flutter_sticky_header: ^0.8.0
+  drift: ^2.23.1
+  drift_flutter: ^0.2.4
+  path_provider: ^2.1.5
+  otp: ^3.1.4
+  mobile_scanner: ^7.0.1
+  file_picker: ^12.2.0
+  mime: ^2.1.0
+  qr_flutter: ^4.1.0
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
+  drift_dev: ^2.23.1
+  build_runner: ^2.4.15
 
 flutter_launcher_icons:
   android: "launcher_icon"

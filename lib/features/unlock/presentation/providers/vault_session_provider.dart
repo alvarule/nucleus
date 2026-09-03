@@ -8,6 +8,7 @@ import 'package:nucleus/core/crypto/vault_crypto_service.dart';
 import 'package:nucleus/core/di/providers.dart';
 import 'package:nucleus/core/errors/app_exception.dart';
 import 'package:nucleus/core/errors/user_facing_error.dart';
+import 'package:nucleus/features/auth/presentation/providers/pending_login_provider.dart';
 import 'package:nucleus/features/profile/domain/entities/user_profile.dart';
 import 'package:nucleus/features/settings/domain/security_timeouts.dart';
 import 'package:nucleus/features/settings/presentation/providers/security_preference_provider.dart';
@@ -21,6 +22,7 @@ class VaultSessionState extends Equatable {
     this.dek,
     this.profile,
     this.profileResolved = false,
+    this.signInMfaPending = false,
     this.revealUntil,
     this.error,
   });
@@ -30,6 +32,8 @@ class VaultSessionState extends Equatable {
   final UserProfile? profile;
   /// True after [loadProfile] so a missing profile is distinct from "not loaded yet".
   final bool profileResolved;
+  /// Full sign-in still needs App Login MFA (persisted across app restarts).
+  final bool signInMfaPending;
   final DateTime? revealUntil;
   final String? error;
 
@@ -47,6 +51,7 @@ class VaultSessionState extends Equatable {
     Uint8List? dek,
     UserProfile? profile,
     bool? profileResolved,
+    bool? signInMfaPending,
     DateTime? revealUntil,
     String? error,
     bool clearDek = false,
@@ -59,6 +64,7 @@ class VaultSessionState extends Equatable {
       dek: clearDek ? null : (dek ?? this.dek),
       profile: clearProfile ? null : (profile ?? this.profile),
       profileResolved: profileResolved ?? this.profileResolved,
+      signInMfaPending: signInMfaPending ?? this.signInMfaPending,
       revealUntil: clearReveal ? null : (revealUntil ?? this.revealUntil),
       error: clearError ? null : (error ?? this.error),
     );
@@ -66,7 +72,7 @@ class VaultSessionState extends Equatable {
 
   @override
   List<Object?> get props =>
-      [status, profile, profileResolved, revealUntil, error, dek?.length];
+      [status, profile, profileResolved, signInMfaPending, revealUntil, error, dek?.length];
 }
 
 /// Owns unlock, lock, logout, and the two security timers (auto-lock + grace).
@@ -120,17 +126,32 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
         _inactivityTimer = null;
         return;
       }
-      final last = _lastActivityAt;
-      if (last == null) return;
-      if (DateTime.now().difference(last) >= timeout) {
-        lock();
-      }
+      _evaluateInactivityLock();
     });
+  }
+
+  /// Locks when wall-clock inactivity exceeds the auto-lock preference (foreground
+  /// timer and [onAppResumed] after background both use this).
+  void _evaluateInactivityLock() {
+    if (!state.isUnlocked) return;
+    final timeout = _autoLockDuration;
+    if (timeout == null) return;
+    final last = _lastActivityAt;
+    if (last == null) return;
+    if (DateTime.now().difference(last) >= timeout) {
+      lock();
+    }
+  }
+
+  /// Called when the app returns to foreground; timers may not fire while paused.
+  void onAppResumed() {
+    _evaluateInactivityLock();
   }
 
   void _onUnlocked({
     required Uint8List dek,
     required UserProfile? profile,
+    bool clearSignInMfaPending = false,
   }) {
     _lastActivityAt = DateTime.now();
     state = VaultSessionState(
@@ -138,6 +159,7 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
       dek: dek,
       profile: profile,
       profileResolved: true,
+      signInMfaPending: clearSignInMfaPending ? false : state.signInMfaPending,
       revealUntil: _revealUntilFromNow(),
     );
     _scheduleInactivityWatch();
@@ -147,11 +169,58 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
   Future<void> loadProfile(String userId) async {
     final profile =
         await _ref.read(profileRepositoryProvider).getProfile(userId);
+    var signInMfaPending = false;
+    if (profile != null && profile.loginTotpEnabled) {
+      final staleInStore =
+          await _ref.read(signInMfaPendingStoreProvider).isPending(userId);
+      if (staleInStore) {
+        if (_ref.read(pendingLoginPasswordProvider) != null) {
+          signInMfaPending = true;
+        } else {
+          await abandonIncompleteSignIn(userId);
+          return;
+        }
+      }
+    }
     state = state.copyWith(
       profile: profile,
       profileResolved: true,
+      signInMfaPending: signInMfaPending,
       clearProfile: profile == null,
     );
+  }
+
+  /// Incomplete sign-in MFA after process death: sign out and clear flags.
+  Future<void> abandonIncompleteSignIn(String userId) async {
+    await _ref.read(signInMfaPendingStoreProvider).clearPending(userId);
+    await _ref.read(biometricUnlockStoreProvider).clearDek(userId);
+    _ref.read(pendingLoginPasswordProvider.notifier).state = null;
+    _inactivityTimer?.cancel();
+    _inactivityTimer = null;
+    _lastActivityAt = null;
+    await _ref.read(authRepositoryProvider).signOut();
+    state = const VaultSessionState();
+  }
+
+  /// After password sign-in when App Login MFA is enabled (before TOTP completes).
+  Future<void> markSignInMfaRequired() async {
+    final userId = _ref.read(authRepositoryProvider).currentUserId;
+    if (userId == null) return;
+    await _ref.read(signInMfaPendingStoreProvider).setPending(userId);
+    state = state.copyWith(signInMfaPending: true);
+  }
+
+  /// After successful login-totp or when abandoning the sign-in MFA step via logout.
+  Future<void> clearSignInMfaRequired() async {
+    final userId = _ref.read(authRepositoryProvider).currentUserId;
+    if (userId != null) {
+      await _ref.read(signInMfaPendingStoreProvider).clearPending(userId);
+    }
+    state = state.copyWith(signInMfaPending: false);
+  }
+
+  bool _mustCompleteSignInMfa(UserProfile profile) {
+    return profile.loginTotpEnabled && state.signInMfaPending;
   }
 
   /// Unwraps the DEK with the master password and caches it for biometrics.
@@ -171,6 +240,14 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
       final profile = await profileRepo.getProfile(userId);
       if (profile == null) {
         throw const CryptoException('Profile not found');
+      }
+      if (_mustCompleteSignInMfa(profile)) {
+        state = state.copyWith(
+          status: VaultSessionStatus.locked,
+          clearDek: true,
+          error: 'Enter your authenticator code to finish signing in',
+        );
+        return;
       }
       final crypto = _ref.read(vaultCryptoProvider);
       final dek = await crypto.unwrapDek(
@@ -198,6 +275,40 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
             : 'Wrong master password',
       );
     }
+  }
+
+  /// Verifies master password without granting reveal grace or changing session.
+  Future<bool> verifyMasterPassword(String masterPassword) async {
+    final auth = _ref.read(authRepositoryProvider);
+    final userId = auth.currentUserId;
+    if (userId == null) return false;
+    try {
+      final profile = state.profile ??
+          await _ref.read(profileRepositoryProvider).getProfile(userId);
+      if (profile == null) return false;
+      final crypto = _ref.read(vaultCryptoProvider);
+      final dek = await crypto.unwrapDek(
+        masterPassword: masterPassword,
+        wrapped: WrappedDek(
+          encryptedDekBase64: profile.encryptedDek,
+          saltBase64: profile.kekSalt,
+          kdfParams: KdfParams.fromJson(profile.kdfParams),
+        ),
+      );
+      if (!state.isUnlocked || state.dek == null) return true;
+      return _bytesEqual(dek, state.dek!);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool _bytesEqual(Uint8List a, Uint8List b) {
+    if (a.length != b.length) return false;
+    var diff = 0;
+    for (var i = 0; i < a.length; i++) {
+      diff |= a[i] ^ b[i];
+    }
+    return diff == 0;
   }
 
   /// Verifies master password while the vault is already unlocked.
@@ -241,6 +352,9 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
     final dek = await store.readDek(userId);
     if (dek == null) return false;
     final profile = await _ref.read(profileRepositoryProvider).getProfile(userId);
+    if (profile != null && _mustCompleteSignInMfa(profile)) {
+      return false;
+    }
     _onUnlocked(dek: dek, profile: profile);
     return true;
   }
@@ -282,6 +396,7 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
       status: VaultSessionStatus.locked,
       profile: state.profile,
       profileResolved: state.profileResolved,
+      signInMfaPending: state.signInMfaPending,
     );
   }
 
@@ -290,6 +405,7 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
     final userId = _ref.read(authRepositoryProvider).currentUserId;
     if (userId != null) {
       await _ref.read(biometricUnlockStoreProvider).clearDek(userId);
+      await _ref.read(signInMfaPendingStoreProvider).clearPending(userId);
     }
     await _ref.read(authRepositoryProvider).signOut();
     _inactivityTimer?.cancel();
@@ -307,7 +423,7 @@ class VaultSessionNotifier extends StateNotifier<VaultSessionState> {
     required Uint8List dek,
     required UserProfile profile,
   }) {
-    _onUnlocked(dek: dek, profile: profile);
+    _onUnlocked(dek: dek, profile: profile, clearSignInMfaPending: true);
   }
 
   @override

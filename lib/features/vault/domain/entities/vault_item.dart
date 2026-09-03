@@ -1,7 +1,8 @@
 /// Vault item types, decrypted presentation model, and encrypted row shape.
 import 'package:equatable/equatable.dart';
+import 'package:nucleus/features/vault/domain/entities/vault_sync_mode.dart';
 
-enum VaultItemType { password, bankAccount, atmCard, note }
+enum VaultItemType { password, bankAccount, atmCard, note, document }
 
 /// Maps enum ↔ `vault_items.item_type` and UI labels/icons.
 extension VaultItemTypeX on VaultItemType {
@@ -10,6 +11,7 @@ extension VaultItemTypeX on VaultItemType {
         VaultItemType.bankAccount => 'bank_account',
         VaultItemType.atmCard => 'atm_card',
         VaultItemType.note => 'note',
+        VaultItemType.document => 'document',
       };
 
   String get label => switch (this) {
@@ -17,6 +19,7 @@ extension VaultItemTypeX on VaultItemType {
         VaultItemType.bankAccount => 'Bank account',
         VaultItemType.atmCard => 'ATM card',
         VaultItemType.note => 'Note',
+        VaultItemType.document => 'Document',
       };
 
   String get icon => switch (this) {
@@ -24,12 +27,14 @@ extension VaultItemTypeX on VaultItemType {
         VaultItemType.bankAccount => 'bank',
         VaultItemType.atmCard => 'card',
         VaultItemType.note => 'note',
+        VaultItemType.document => 'note',
       };
 
   static VaultItemType fromDb(String value) => switch (value) {
         'bank_account' => VaultItemType.bankAccount,
         'atm_card' => VaultItemType.atmCard,
         'note' => VaultItemType.note,
+        'document' => VaultItemType.document,
         _ => VaultItemType.password,
       };
 }
@@ -44,6 +49,7 @@ class VaultItem extends Equatable {
     required this.createdAt,
     required this.updatedAt,
     this.folderId,
+    this.syncMode = VaultSyncMode.cloud,
   });
 
   final String id;
@@ -54,6 +60,7 @@ class VaultItem extends Equatable {
   final DateTime updatedAt;
   /// Null means Uncategorized. Not encrypted.
   final String? folderId;
+  final VaultSyncMode syncMode;
 
   String get label => (fields['label'] as String?) ?? 'Untitled';
 
@@ -68,6 +75,8 @@ class VaultItem extends Equatable {
       case VaultItemType.atmCard:
         return _endingWith(fields['card_no']);
       case VaultItemType.note:
+        return null;
+      case VaultItemType.document:
         return null;
     }
   }
@@ -87,6 +96,7 @@ class VaultItem extends Equatable {
     Map<String, dynamic>? fields,
     String? folderId,
     bool clearFolderId = false,
+    VaultSyncMode? syncMode,
   }) {
     return VaultItem(
       id: id,
@@ -96,12 +106,13 @@ class VaultItem extends Equatable {
       createdAt: createdAt,
       updatedAt: updatedAt,
       folderId: clearFolderId ? null : (folderId ?? this.folderId),
+      syncMode: syncMode ?? this.syncMode,
     );
   }
 
   @override
   List<Object?> get props =>
-      [id, userId, type, fields, createdAt, updatedAt, folderId];
+      [id, userId, type, fields, createdAt, updatedAt, folderId, syncMode];
 }
 
 /// Ciphertext row as stored in `vault_items` (unused by the repository today;

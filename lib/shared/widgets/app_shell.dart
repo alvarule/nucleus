@@ -1,4 +1,4 @@
-/// Bottom nav shell for Home / Generator / Health / Settings.
+/// Bottom nav shell for Home / MFA / Generator / Health / Settings.
 ///
 /// [PopScope] is only active while this shell is the top route. Pushed pages
 /// keep normal back. Double-back on Home exits; other tabs first return Home.
@@ -86,6 +86,11 @@ class _AppShellState extends State<AppShell> {
               icon: AppIcon('home', color: colors.textTertiary),
               selectedIcon: AppIcon('home', color: colors.primary),
               label: 'Home',
+            ),
+            NavigationDestination(
+              icon: AppIcon('shield', color: colors.textTertiary),
+              selectedIcon: AppIcon('shield', color: colors.primary),
+              label: 'MFA',
             ),
             NavigationDestination(
               icon: AppIcon('generator', color: colors.textTertiary),

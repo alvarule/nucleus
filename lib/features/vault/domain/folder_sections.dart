@@ -34,6 +34,8 @@ List<VaultFolderSection> buildFolderSections({
     });
 
   final sections = <VaultFolderSection>[];
+  final knownFolderIds = sortedFolders.map((f) => f.id).toSet();
+
   for (final folder in sortedFolders) {
     final inFolder = items.where((i) => i.folderId == folder.id).toList();
     sortItems(inFolder, sort);
@@ -47,8 +49,15 @@ List<VaultFolderSection> buildFolderSections({
     );
   }
 
-  final uncategorized =
-      items.where((i) => i.folderId == null || i.folderId!.isEmpty).toList();
+  // Uncategorized: no folder, empty folder id, or folder row missing (offline / deleted).
+  final uncategorized = items
+      .where(
+        (i) =>
+            i.folderId == null ||
+            i.folderId!.isEmpty ||
+            !knownFolderIds.contains(i.folderId),
+      )
+      .toList();
   sortItems(uncategorized, sort);
   if (uncategorized.isNotEmpty || includeEmptyFolders) {
     sections.add(

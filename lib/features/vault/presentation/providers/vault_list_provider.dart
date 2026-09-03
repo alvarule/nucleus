@@ -6,6 +6,7 @@ import 'package:nucleus/core/errors/user_facing_error.dart';
 import 'package:nucleus/features/unlock/presentation/providers/vault_session_provider.dart';
 import 'package:nucleus/features/vault/domain/entities/vault_folder.dart';
 import 'package:nucleus/features/vault/domain/entities/vault_item.dart';
+import 'package:nucleus/features/vault/domain/entities/vault_sync_mode.dart';
 import 'package:nucleus/features/vault/domain/folder_sections.dart';
 import 'package:nucleus/features/vault/domain/vault_sort.dart';
 
@@ -77,6 +78,16 @@ class VaultListState {
 class VaultListNotifier extends StateNotifier<VaultListState> {
   VaultListNotifier(this._ref) : super(const VaultListState()) {
     _loadSort();
+    // Reload after unlock; clear cached rows when the DEK is dropped (lock/logout).
+    _ref.listen(vaultSessionProvider, (previous, next) {
+      final wasUnlocked = previous?.isUnlocked ?? false;
+      final isUnlocked = next.isUnlocked;
+      if (!wasUnlocked && isUnlocked) {
+        refresh();
+      } else if (wasUnlocked && !isUnlocked) {
+        state = const VaultListState();
+      }
+    });
   }
 
   final Ref _ref;
@@ -92,38 +103,41 @@ class VaultListNotifier extends StateNotifier<VaultListState> {
     final session = _ref.read(vaultSessionProvider);
     final userId = _ref.read(authRepositoryProvider).currentUserId;
     if (!session.isUnlocked || session.dek == null || userId == null) {
-      state = state.copyWith(
-        items: [],
-        folders: [],
-        loading: false,
-        hasLoaded: true,
-      );
+      // Do not clear [items] here — a stale locked refresh was wiping the list
+      // before unlock; [listen] clears on lock and refresh runs after unlock.
       return;
     }
     state = state.copyWith(loading: true, clearError: true);
+    List<VaultItem> items = const [];
+    List<VaultFolder> folders = const [];
+    String? loadError;
     try {
-      final items = await _ref.read(vaultRepositoryProvider).listItems(
+      items = await _ref.read(vaultRepositoryProvider).listItems(
             userId: userId,
             dek: session.dek!,
           );
-      final folders =
-          await _ref.read(folderRepositoryProvider).listFolders(userId);
-      state = state.copyWith(
-        items: items,
-        folders: folders,
-        loading: false,
-        hasLoaded: true,
-      );
     } catch (e) {
-      state = state.copyWith(
-        loading: false,
-        hasLoaded: true,
-        error: await userFacingErrorMessage(
-          _ref.read(connectivityServiceProvider),
-          e,
-        ),
+      loadError = await userFacingErrorMessage(
+        _ref.read(connectivityServiceProvider),
+        e,
       );
     }
+    try {
+      folders =
+          await _ref.read(folderRepositoryProvider).listFolders(userId);
+    } catch (e) {
+      loadError ??= await userFacingErrorMessage(
+        _ref.read(connectivityServiceProvider),
+        e,
+      );
+    }
+    state = state.copyWith(
+      items: items,
+      folders: folders,
+      loading: false,
+      hasLoaded: true,
+      error: loadError,
+    );
   }
 
   void setQuery(String query) => state = state.copyWith(query: query);
@@ -138,8 +152,10 @@ class VaultListNotifier extends StateNotifier<VaultListState> {
     await prefs.setString(_sortKey, sort.name);
   }
 
-  Future<void> delete(String id) async {
-    await _ref.read(vaultRepositoryProvider).deleteItem(id);
+  Future<void> delete(String id, {VaultSyncMode? syncMode}) async {
+    final item = state.items.where((i) => i.id == id).firstOrNull;
+    final mode = syncMode ?? item?.syncMode;
+    await _ref.read(vaultRepositoryProvider).deleteItem(id, syncMode: mode);
     await refresh();
   }
 
