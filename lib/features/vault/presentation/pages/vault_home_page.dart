@@ -575,17 +575,49 @@ class _VaultHomePageState extends ConsumerState<VaultHomePage> {
                         return false;
                       },
                       child:
-                          state.visible.isEmpty &&
-                              (state.query.trim().isNotEmpty ||
-                                  state.filter != null)
+                          state.visible.isEmpty
                           ? Center(
-                              child: Text(
-                                'No matching items.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: colors.textSecondary,
-                                  fontSize: scale.fontMd,
-                                  height: 1.4,
+                              child: Padding(
+                                padding: EdgeInsets.all(scale.xl),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (state.query.trim().isEmpty && state.filter == null)
+                                      Container(
+                                        width: scale.s(56),
+                                        height: scale.s(56),
+                                        decoration: BoxDecoration(
+                                          color: colors.primarySoft,
+                                          borderRadius: BorderRadius.circular(scale.radiusMd),
+                                        ),
+                                        child: Center(
+                                          child: AppIcon('vault_empty', color: colors.primary),
+                                        ),
+                                      ),
+                                    if (state.query.trim().isEmpty && state.filter == null)
+                                      SizedBox(height: scale.md),
+                                    if (state.query.trim().isEmpty && state.filter == null)
+                                      Text(
+                                        'Your vault is empty.',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: scale.fontLg,
+                                          color: colors.textPrimary,
+                                        ),
+                                      ),
+                                    if (state.query.trim().isEmpty && state.filter == null)
+                                      SizedBox(height: scale.xs),
+                                    Text(
+                                      (state.query.trim().isEmpty && state.filter == null)
+                                        ? 'Tap + to add your first item.'
+                                        : 'No matching items.',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: colors.textSecondary,
+                                        fontSize: scale.fontMd,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             )
